@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DataSage synthetic fixture ground truth",
+  "type": "object",
+  "required": [
+    "dataset_version",
+    "tables",
+    "primary_keys",
+    "foreign_keys",
+    "candidate_keys",
+    "expected_row_counts",
+    "expected_column_counts",
+    "defects"
+  ],
+  "properties": {
+    "dataset_version": {
+      "type": "string"
+    },
+    "tables": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "primary_keys": {
+      "type": "object"
+    },
+    "foreign_keys": {
+      "type": "array"
+    },
+    "candidate_keys": {
+      "type": "object"
+    },
+    "expected_row_counts": {
+      "type": "object"
+    },
+    "expected_column_counts": {
+      "type": "object"
+    },
+    "defects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "defect_id",
+          "version",
+          "table",
+          "issue_type",
+          "column",
+          "row_ids",
+          "severity",
+          "description",
+          "expected_detection"
+        ]
+      }
+    }
+  },
+  "allowed_issue_types": [
+    "null_value",
+    "empty_string",
+    "duplicate_record",
+    "duplicate_primary_key",
+    "duplicate_candidate_key",
+    "invalid_numeric",
+    "mixed_type",
+    "invalid_date",
+    "inconsistent_date_format",
+    "whitespace_inconsistency",
+    "casing_inconsistency",
+    "foreign_key_violation",
+    "orphan_record",
+    "outlier",
+    "missing_required_value",
+    "value_consistency_violation",
+    "encoding_edge_case",
+    "schema_added_column",
+    "schema_removed_column",
+    "schema_renamed_column",
+    "schema_type_change",
+    "category_drift"
+  ],
+  "row_reference_convention": "row_numbers are 1-based data-row numbers excluding the CSV header."
+}

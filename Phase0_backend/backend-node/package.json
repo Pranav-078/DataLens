@@ -1,0 +1,45 @@
+{
+  "name": "datasage-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src tests",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate:dev": "prisma migrate dev"
+  },
+  "dependencies": {
+    "@prisma/client": "5.19.1",
+    "csv-parse": "5.5.6",
+    "express": "4.21.0",
+    "file-type": "19.5.0",
+    "iconv-lite": "0.6.3",
+    "jschardet": "3.1.4",
+    "multer": "1.4.5-lts.1",
+    "pino": "9.4.0",
+    "pino-http": "10.3.0",
+    "uuid": "10.0.0",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "4.17.21",
+    "@types/multer": "1.4.12",
+    "@types/node": "22.5.5",
+    "@types/supertest": "6.0.2",
+    "@types/uuid": "10.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.7.0",
+    "@typescript-eslint/parser": "^8.7.0",
+    "eslint": "9.10.0",
+    "prisma": "5.19.1",
+    "supertest": "7.0.0",
+    "tsx": "4.19.1",
+    "typescript": "5.6.2",
+    "vitest": "2.1.1"
+  }
+}

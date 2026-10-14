@@ -1,0 +1,33 @@
+# ── environment ──────────────────────────────────────────────────────────
+.env
+.env.local
+
+# ── Node ─────────────────────────────────────────────────────────────────
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+# ── Python ───────────────────────────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# ── generated data (reproducible from the generators, not source) ────────
+data/clean/
+data/corrupted/
+evaluation/results/*.json
+
+# ── storage volume (local dev only; real storage is the Docker volume) ───
+storage/
+
+# ── editor/OS ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+
+# ── logs ─────────────────────────────────────────────────────────────────
+*.log

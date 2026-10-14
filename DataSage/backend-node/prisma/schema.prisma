@@ -1,0 +1,330 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+/// A named workspace the user creates. Everything else hangs off a project.
+model Project {
+  id           String           @id @default(uuid())
+  name         String
+  description  String?
+  settings     Json             @default("{}")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  chatSessions ChatSession[]
+  versions     DatasetVersion[]
+  documents    Document[]
+
+  @@map("projects")
+}
+
+/// One upload event = one version. Multiple CSVs uploaded together are
+/// committed atomically as a single version, which is what makes version
+/// comparison (Phase 5) meaningful instead of arbitrary.
+model DatasetVersion {
+  id            String                 @id @default(uuid())
+  projectId     String                 @map("project_id")
+  versionNumber Int                    @map("version_number")
+  label         String?
+  duckdbPath    String?                @map("duckdb_path")
+  status        String                 @default("pending")
+  createdAt     DateTime               @default(now()) @map("created_at")
+  tables        DatasetTable[]
+  project       Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  relationships InferredRelationship[]
+  jobs          Job[]
+  issues        QualityIssue[]
+  score         QualityScore?
+  reports       Report[]
+  sqlQueries    SqlQuery[]
+
+  @@unique([projectId, versionNumber])
+  @@index([projectId, createdAt(sort: Desc)])
+  @@map("dataset_versions")
+}
+
+/// One CSV file inside a version. Holds file-level facts (row/column counts,
+/// checksum) that don't belong on a column.
+model DatasetTable {
+  id                    String                 @id @default(uuid())
+  versionId             String                 @map("version_id")
+  tableName             String                 @map("table_name")
+  normalizedName        String                 @map("normalized_name")
+  originalFilename      String                 @map("original_filename")
+  filePath              String                 @map("file_path")
+  rowCount              Int?                   @map("row_count")
+  columnCount           Int?                   @map("column_count")
+  fileSizeBytes         BigInt                 @map("file_size_bytes")
+  checksum              String
+  sampleRows            Json?                  @map("sample_rows")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  columns               DatasetColumn[]
+  version               DatasetVersion         @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  relationshipsAsChild  InferredRelationship[] @relation("RelChildTable")
+  relationshipsAsParent InferredRelationship[] @relation("RelParentTable")
+  issuesAsTable         QualityIssue[]         @relation("IssueTable")
+
+  @@unique([versionId, tableName])
+  @@unique([versionId, normalizedName])
+  @@map("dataset_tables")
+}
+
+/// One column inside one table. Split from ColumnStatistics because this
+/// list is read on nearly every page; the stats blob is read only on demand.
+model DatasetColumn {
+  id                       String                 @id @default(uuid())
+  tableId                  String                 @map("table_id")
+  columnName               String                 @map("column_name")
+  ordinalPosition          Int                    @map("ordinal_position")
+  inferredType             String?                @map("inferred_type")
+  semanticType             String?                @map("semantic_type")
+  isPkCandidate            Boolean                @default(false) @map("is_pk_candidate")
+  pkConfidence             Decimal?               @map("pk_confidence") @db.Decimal(4, 3)
+  statistics               ColumnStatistics?
+  table                    DatasetTable           @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  relationshipsAsChildCol  InferredRelationship[] @relation("RelChildColumn")
+  relationshipsAsParentCol InferredRelationship[] @relation("RelParentColumn")
+  issuesAsColumn           QualityIssue[]         @relation("IssueColumn")
+
+  @@unique([tableId, columnName])
+  @@map("dataset_columns")
+}
+
+/// 1:1 with DatasetColumn. Separate table so the "fat" per-column profile
+/// (top values, distributions) isn't loaded every time the column list renders.
+model ColumnStatistics {
+  columnId         String        @id @map("column_id")
+  nullCount        Int           @map("null_count")
+  nullPercentage   Decimal       @map("null_percentage") @db.Decimal(6, 3)
+  distinctCount    Int           @map("distinct_count")
+  uniquenessRatio  Decimal       @map("uniqueness_ratio") @db.Decimal(6, 5)
+  minValue         String?       @map("min_value")
+  maxValue         String?       @map("max_value")
+  mean             Decimal?      @db.Decimal
+  stddev           Decimal?      @db.Decimal
+  topValues        Json?         @map("top_values")
+  typeDistribution Json?         @map("type_distribution")
+  sampleValues     Json?         @map("sample_values")
+  column           DatasetColumn @relation(fields: [columnId], references: [id], onDelete: Cascade)
+
+  @@map("column_statistics")
+}
+
+/// One detected problem. `fingerprint` is deterministic (type+table+column,
+/// NOT counts) and is what makes version diffing a set operation instead of
+/// fuzzy title matching â€” see evaluation/ground_truth.schema.json for how
+/// the same idea is used to grade detectors against known injected defects.
+model QualityIssue {
+  id                 String         @id @default(uuid())
+  versionId          String         @map("version_id")
+  tableId            String?        @map("table_id")
+  columnId           String?        @map("column_id")
+  issueType          String         @map("issue_type")
+  dimension          String
+  severity           String
+  title              String
+  description        String
+  affectedRows       Int            @map("affected_rows")
+  totalRows          Int            @map("total_rows")
+  affectedPercentage Decimal        @map("affected_percentage") @db.Decimal(6, 3)
+  examples           Json           @default("[]")
+  evidence           Json           @default("{}")
+  suggestedAction    String?        @map("suggested_action")
+  fingerprint        String
+  createdAt          DateTime       @default(now()) @map("created_at")
+  explanation        AiExplanation?
+  column             DatasetColumn? @relation("IssueColumn", fields: [columnId], references: [id])
+  table              DatasetTable?  @relation("IssueTable", fields: [tableId], references: [id])
+  version            DatasetVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId, severity])
+  @@index([versionId, tableId])
+  @@index([versionId, issueType])
+  @@index([versionId, fingerprint])
+  @@map("quality_issues")
+}
+
+/// One per version. The full breakdown is stored so the UI can render
+/// "why this number" rather than just the number.
+model QualityScore {
+  id                   String         @id @default(uuid())
+  versionId            String         @unique @map("version_id")
+  overallScore         Decimal?       @map("overall_score") @db.Decimal(5, 2)
+  completeness         Decimal?       @db.Decimal(5, 2)
+  uniqueness           Decimal?       @db.Decimal(5, 2)
+  validity             Decimal?       @db.Decimal(5, 2)
+  consistency          Decimal?       @db.Decimal(5, 2)
+  referentialIntegrity Decimal?       @map("referential_integrity") @db.Decimal(5, 2)
+  applicableDimensions String[]       @map("applicable_dimensions")
+  weightsUsed          Json           @map("weights_used")
+  capApplied           Decimal?       @map("cap_applied") @db.Decimal(5, 2)
+  capReason            String?        @map("cap_reason")
+  calculationBreakdown Json           @map("calculation_breakdown")
+  criticalCount        Int            @default(0) @map("critical_count")
+  highCount            Int            @default(0) @map("high_count")
+  mediumCount          Int            @default(0) @map("medium_count")
+  lowCount             Int            @default(0) @map("low_count")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  version              DatasetVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@map("quality_scores")
+}
+
+/// One inferred FK relationship, with the evidence that produced it, so the
+/// UI can show *why* rather than just asserting a join exists.
+model InferredRelationship {
+  id               String         @id @default(uuid())
+  versionId        String         @map("version_id")
+  parentTableId    String         @map("parent_table_id")
+  parentColumnId   String         @map("parent_column_id")
+  childTableId     String         @map("child_table_id")
+  childColumnId    String         @map("child_column_id")
+  confidence       Decimal        @db.Decimal(4, 3)
+  confidenceBand   String         @map("confidence_band")
+  status           String         @default("inferred")
+  valueOverlap     Decimal        @map("value_overlap") @db.Decimal(6, 5)
+  orphanCount      Int            @map("orphan_count")
+  orphanPercentage Decimal        @map("orphan_percentage") @db.Decimal(6, 3)
+  orphanExamples   Json           @default("[]") @map("orphan_examples")
+  evidence         Json           @default("{}")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  childColumn      DatasetColumn  @relation("RelChildColumn", fields: [childColumnId], references: [id])
+  childTable       DatasetTable   @relation("RelChildTable", fields: [childTableId], references: [id])
+  parentColumn     DatasetColumn  @relation("RelParentColumn", fields: [parentColumnId], references: [id])
+  parentTable      DatasetTable   @relation("RelParentTable", fields: [parentTableId], references: [id])
+  version          DatasetVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId, confidence(sort: Desc)])
+  @@map("inferred_relationships")
+}
+
+/// One per issue, cached forever once generated. `inputFacts` is the exact
+/// JSON handed to the LLM â€” the audit trail proving no numbers were invented.
+model AiExplanation {
+  id                String       @id @default(uuid())
+  issueId           String       @unique @map("issue_id")
+  explanation       String
+  businessImpact    String?      @map("business_impact")
+  recommendedAction String?      @map("recommended_action")
+  model             String
+  promptVersion     String       @map("prompt_version")
+  inputFacts        Json         @map("input_facts")
+  generatedAt       DateTime     @default(now()) @map("generated_at")
+  issue             QualityIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@map("ai_explanations")
+}
+
+model Document {
+  id            String          @id @default(uuid())
+  projectId     String          @map("project_id")
+  filename      String
+  filePath      String          @map("file_path")
+  mimeType      String          @map("mime_type")
+  fileSizeBytes BigInt          @map("file_size_bytes")
+  status        String          @default("pending")
+  errorMessage  String?         @map("error_message")
+  chunkCount    Int             @default(0) @map("chunk_count")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  chunks        DocumentChunk[]
+  project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("documents")
+}
+
+/// Embedding is nullable at the schema level because a chunk exists briefly
+/// between text-extraction and embedding â€” never faked as an all-zero vector.
+model DocumentChunk {
+  id             String                 @id @default(uuid())
+  documentId     String                 @map("document_id")
+  chunkIndex     Int                    @map("chunk_index")
+  content        String
+  tokenCount     Int                    @map("token_count")
+  pageNumber     Int?                   @map("page_number")
+  sectionHeading String?                @map("section_heading")
+  embedding      Unsupported("vector")?
+  document       Document               @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, chunkIndex])
+  @@map("document_chunks")
+}
+
+model ChatSession {
+  id        String        @id @default(uuid())
+  projectId String        @map("project_id")
+  title     String?
+  createdAt DateTime      @default(now()) @map("created_at")
+  messages  ChatMessage[]
+  project   Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id                String      @id @default(uuid())
+  sessionId         String      @map("session_id")
+  role              String
+  content           String
+  retrievedChunkIds String[]    @map("retrieved_chunk_ids")
+  retrievalScores   Json?       @map("retrieval_scores")
+  refused           Boolean     @default(false)
+  latencyMs         Int?        @map("latency_ms")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  session           ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+}
+
+model SqlQuery {
+  id                      String         @id @default(uuid())
+  versionId               String         @map("version_id")
+  naturalLanguageQuestion String         @map("natural_language_question")
+  generatedSql            String         @map("generated_sql")
+  validatedSql            String?        @map("validated_sql")
+  validationPassed        Boolean        @map("validation_passed")
+  rejectionReason         String?        @map("rejection_reason")
+  rowCount                Int?           @map("row_count")
+  executionMs             Int?           @map("execution_ms")
+  errorMessage            String?        @map("error_message")
+  createdAt               DateTime       @default(now()) @map("created_at")
+  version                 DatasetVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@map("sql_queries")
+}
+
+model Report {
+  id        String         @id @default(uuid())
+  versionId String         @map("version_id")
+  filePath  String         @map("file_path")
+  format    String         @default("html")
+  createdAt DateTime       @default(now()) @map("created_at")
+  version   DatasetVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
+
+/// Backs the async upload flow. Without this, profiling a large upload would
+/// block an HTTP request for tens of seconds, which is a demo-day failure
+/// waiting to happen.
+model Job {
+  id              String          @id @default(uuid())
+  projectId       String          @map("project_id")
+  versionId       String?         @map("version_id")
+  jobType         String          @map("job_type")
+  status          String          @default("queued")
+  progressPercent Int             @default(0) @map("progress_percent")
+  currentStep     String?         @map("current_step")
+  errorMessage    String?         @map("error_message")
+  startedAt       DateTime?       @map("started_at")
+  finishedAt      DateTime?       @map("finished_at")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  version         DatasetVersion? @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt(sort: Desc)])
+  @@map("jobs")
+}

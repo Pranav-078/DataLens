@@ -1,0 +1,5 @@
+# Dependencies for data/generators/ and evaluation/ — NOT for
+# backend-python, which has its own pyproject.toml and stays free of these.
+pandas==2.2.3
+jsonschema==4.23.0
+pytest==8.3.3

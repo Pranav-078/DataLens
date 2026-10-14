@@ -1,0 +1,1082 @@
+{
+  "dataset_version": "fixture-suite-1.0",
+  "generator_seed": 20260918,
+  "null_representation": {
+    "token": "NULL",
+    "description": "The literal NULL token represents a null value; a blank field represents an empty string."
+  },
+  "tables": [
+    "customers",
+    "products",
+    "product_variants",
+    "orders",
+    "order_items",
+    "tickets",
+    "ticket_events"
+  ],
+  "primary_keys": {
+    "customers": "customer_id",
+    "products": "product_id",
+    "product_variants": "variant_id",
+    "orders": "order_id",
+    "order_items": "item_id",
+    "tickets": "ticket_id",
+    "ticket_events": "event_id"
+  },
+  "foreign_keys": [
+    {
+      "from_table": "orders",
+      "from_column": "customer_id",
+      "to_table": "customers",
+      "to_column": "customer_id"
+    },
+    {
+      "from_table": "order_items",
+      "from_column": "order_id",
+      "to_table": "orders",
+      "to_column": "order_id"
+    },
+    {
+      "from_table": "order_items",
+      "from_column": "product_id",
+      "to_table": "products",
+      "to_column": "product_id"
+    },
+    {
+      "from_table": "order_items",
+      "from_column": "variant_id",
+      "to_table": "product_variants",
+      "to_column": "variant_id"
+    },
+    {
+      "from_table": "product_variants",
+      "from_column": "product_id",
+      "to_table": "products",
+      "to_column": "product_id"
+    },
+    {
+      "from_table": "tickets",
+      "from_column": "customer_id",
+      "to_table": "customers",
+      "to_column": "customer_id"
+    },
+    {
+      "from_table": "ticket_events",
+      "from_column": "ticket_id",
+      "to_table": "tickets",
+      "to_column": "ticket_id"
+    }
+  ],
+  "candidate_keys": {
+    "customers": [
+      "email"
+    ],
+    "products": [
+      "sku"
+    ],
+    "product_variants": [
+      "variant_sku"
+    ]
+  },
+  "expected_row_counts": {
+    "v1_clean": {
+      "customers": 100,
+      "products": 40,
+      "product_variants": 80,
+      "orders": 150,
+      "order_items": 337,
+      "tickets": 100,
+      "ticket_events": 300
+    },
+    "v2_dirty": {
+      "customers": 101,
+      "products": 40,
+      "product_variants": 80,
+      "orders": 150,
+      "order_items": 337,
+      "tickets": 100,
+      "ticket_events": 301
+    },
+    "v3_schema_drift": {
+      "customers": 100,
+      "products": 40,
+      "product_variants": 80,
+      "orders": 150,
+      "order_items": 337,
+      "tickets": 100,
+      "ticket_events": 300
+    }
+  },
+  "expected_column_counts": {
+    "v1_clean": {
+      "customers": 8,
+      "products": 9,
+      "product_variants": 8,
+      "orders": 11,
+      "order_items": 7,
+      "tickets": 9,
+      "ticket_events": 6
+    },
+    "v2_dirty": {
+      "customers": 8,
+      "products": 9,
+      "product_variants": 8,
+      "orders": 11,
+      "order_items": 7,
+      "tickets": 9,
+      "ticket_events": 6
+    },
+    "v3_schema_drift": {
+      "customers": 8,
+      "products": 9,
+      "product_variants": 8,
+      "orders": 12,
+      "order_items": 7,
+      "tickets": 9,
+      "ticket_events": 6
+    }
+  },
+  "columns": {
+    "v1_clean": {
+      "customers": [
+        "customer_id",
+        "full_name",
+        "email",
+        "phone",
+        "signup_date",
+        "country",
+        "segment",
+        "is_active"
+      ],
+      "products": [
+        "product_id",
+        "sku",
+        "product_name",
+        "category",
+        "base_price",
+        "currency",
+        "status",
+        "created_date",
+        "description"
+      ],
+      "product_variants": [
+        "variant_id",
+        "product_id",
+        "variant_sku",
+        "option_name",
+        "option_value",
+        "price_adjustment",
+        "stock_quantity",
+        "is_active"
+      ],
+      "orders": [
+        "order_id",
+        "customer_id",
+        "order_date",
+        "shipping_date",
+        "status",
+        "payment_method",
+        "shipping_country",
+        "subtotal",
+        "shipping_fee",
+        "tax_amount",
+        "total_amount"
+      ],
+      "order_items": [
+        "item_id",
+        "order_id",
+        "product_id",
+        "variant_id",
+        "quantity",
+        "unit_price",
+        "line_total"
+      ],
+      "tickets": [
+        "ticket_id",
+        "customer_id",
+        "opened_at",
+        "priority",
+        "status",
+        "channel",
+        "subject",
+        "description",
+        "assigned_team"
+      ],
+      "ticket_events": [
+        "event_id",
+        "ticket_id",
+        "event_time",
+        "event_type",
+        "actor_role",
+        "note"
+      ]
+    },
+    "v2_dirty": {
+      "customers": [
+        "customer_id",
+        "full_name",
+        "email",
+        "phone",
+        "signup_date",
+        "country",
+        "segment",
+        "is_active"
+      ],
+      "products": [
+        "product_id",
+        "sku",
+        "product_name",
+        "category",
+        "base_price",
+        "currency",
+        "status",
+        "created_date",
+        "description"
+      ],
+      "product_variants": [
+        "variant_id",
+        "product_id",
+        "variant_sku",
+        "option_name",
+        "option_value",
+        "price_adjustment",
+        "stock_quantity",
+        "is_active"
+      ],
+      "orders": [
+        "order_id",
+        "customer_id",
+        "order_date",
+        "shipping_date",
+        "status",
+        "payment_method",
+        "shipping_country",
+        "subtotal",
+        "shipping_fee",
+        "tax_amount",
+        "total_amount"
+      ],
+      "order_items": [
+        "item_id",
+        "order_id",
+        "product_id",
+        "variant_id",
+        "quantity",
+        "unit_price",
+        "line_total"
+      ],
+      "tickets": [
+        "ticket_id",
+        "customer_id",
+        "opened_at",
+        "priority",
+        "status",
+        "channel",
+        "subject",
+        "description",
+        "assigned_team"
+      ],
+      "ticket_events": [
+        "event_id",
+        "ticket_id",
+        "event_time",
+        "event_type",
+        "actor_role",
+        "note"
+      ]
+    },
+    "v3_schema_drift": {
+      "customers": [
+        "customer_id",
+        "customer_name",
+        "email",
+        "signup_date",
+        "country",
+        "segment",
+        "is_active",
+        "loyalty_tier"
+      ],
+      "products": [
+        "product_id",
+        "sku",
+        "product_name",
+        "category",
+        "base_price",
+        "currency",
+        "status",
+        "created_date",
+        "description"
+      ],
+      "product_variants": [
+        "variant_id",
+        "product_id",
+        "variant_sku",
+        "option_name",
+        "option_value",
+        "price_adjustment",
+        "stock_quantity",
+        "is_active"
+      ],
+      "orders": [
+        "order_id",
+        "customer_id",
+        "order_date",
+        "shipping_date",
+        "status",
+        "payment_method",
+        "shipping_country",
+        "subtotal",
+        "shipping_fee",
+        "tax_amount",
+        "total_amount",
+        "fulfillment_center"
+      ],
+      "order_items": [
+        "item_id",
+        "order_id",
+        "product_id",
+        "variant_id",
+        "quantity",
+        "unit_price",
+        "line_total"
+      ],
+      "tickets": [
+        "ticket_id",
+        "customer_id",
+        "opened_at",
+        "priority",
+        "status",
+        "channel",
+        "subject",
+        "description",
+        "assigned_team"
+      ],
+      "ticket_events": [
+        "event_id",
+        "ticket_id",
+        "event_time",
+        "event_type",
+        "actor_role",
+        "note"
+      ]
+    }
+  },
+  "schema_changes": [
+    {
+      "defect_id": "SCHEMA-001",
+      "version": "v3_schema_drift",
+      "table": "customers",
+      "issue_type": "schema_renamed_column",
+      "column": "full_name",
+      "new_column": "customer_name",
+      "row_ids": [],
+      "severity": "medium",
+      "expected_detection": true,
+      "description": "full_name was renamed to customer_name."
+    },
+    {
+      "defect_id": "SCHEMA-002",
+      "version": "v3_schema_drift",
+      "table": "customers",
+      "issue_type": "schema_added_column",
+      "column": "loyalty_tier",
+      "row_ids": [],
+      "severity": "low",
+      "expected_detection": true,
+      "description": "loyalty_tier was added for customer segmentation."
+    },
+    {
+      "defect_id": "SCHEMA-003",
+      "version": "v3_schema_drift",
+      "table": "customers",
+      "issue_type": "schema_removed_column",
+      "column": "phone",
+      "row_ids": [],
+      "severity": "medium",
+      "expected_detection": true,
+      "description": "phone was removed from the newer customer export."
+    },
+    {
+      "defect_id": "SCHEMA-004",
+      "version": "v3_schema_drift",
+      "table": "customers",
+      "issue_type": "schema_type_change",
+      "column": "is_active",
+      "from_type": "boolean_text",
+      "to_type": "integer_text",
+      "row_ids": [],
+      "severity": "medium",
+      "expected_detection": true,
+      "description": "is_active changed from true/false text to 1/0 text."
+    },
+    {
+      "defect_id": "SCHEMA-005",
+      "version": "v3_schema_drift",
+      "table": "products",
+      "issue_type": "category_drift",
+      "column": "category",
+      "old_values": [
+        "Home & Kitchen"
+      ],
+      "new_values": [
+        "Home & Living"
+      ],
+      "row_ids": [],
+      "severity": "medium",
+      "expected_detection": true,
+      "description": "Home & Kitchen was renamed to Home & Living."
+    },
+    {
+      "defect_id": "SCHEMA-006",
+      "version": "v3_schema_drift",
+      "table": "orders",
+      "issue_type": "inconsistent_date_format",
+      "column": "order_date",
+      "row_ids": [],
+      "from_format": "YYYY-MM-DD",
+      "to_format": "MM/DD/YYYY",
+      "description": "Order dates use a US slash-separated representation.",
+      "severity": "medium",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "SCHEMA-007",
+      "version": "v3_schema_drift",
+      "table": "orders",
+      "issue_type": "schema_added_column",
+      "column": "fulfillment_center",
+      "row_ids": [],
+      "severity": "low",
+      "expected_detection": true,
+      "description": "fulfillment_center was added to order exports."
+    }
+  ],
+  "defects": [
+    {
+      "defect_id": "DIRTY-001",
+      "version": "v2_dirty",
+      "table": "customers",
+      "issue_type": "null_value",
+      "column": "email",
+      "row_ids": [
+        "CUST-0010"
+      ],
+      "row_numbers": [
+        10
+      ],
+      "severity": "medium",
+      "description": "Customer email uses the repository NULL sentinel.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-002",
+      "version": "v2_dirty",
+      "table": "customers",
+      "issue_type": "empty_string",
+      "column": "phone",
+      "row_ids": [
+        "CUST-0030"
+      ],
+      "row_numbers": [
+        30
+      ],
+      "severity": "low",
+      "description": "Phone is intentionally an empty CSV field, distinct from NULL.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-003",
+      "version": "v2_dirty",
+      "table": "products",
+      "issue_type": "null_value",
+      "column": "category",
+      "row_ids": [
+        "PROD-0005"
+      ],
+      "row_numbers": [
+        5
+      ],
+      "severity": "medium",
+      "description": "Product category is intentionally null.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-004",
+      "version": "v2_dirty",
+      "table": "products",
+      "issue_type": "whitespace_inconsistency",
+      "column": "category",
+      "row_ids": [
+        "PROD-0007"
+      ],
+      "row_numbers": [
+        7
+      ],
+      "severity": "low",
+      "description": "Category has an intentional leading space.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-005",
+      "version": "v2_dirty",
+      "table": "products",
+      "issue_type": "invalid_numeric",
+      "column": "base_price",
+      "row_ids": [
+        "PROD-0010"
+      ],
+      "row_numbers": [
+        10
+      ],
+      "severity": "high",
+      "description": "Base price is a non-numeric value.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-006",
+      "version": "v2_dirty",
+      "table": "products",
+      "issue_type": "invalid_numeric",
+      "column": "base_price",
+      "row_ids": [
+        "PROD-0011"
+      ],
+      "row_numbers": [
+        11
+      ],
+      "severity": "high",
+      "description": "Base price is negative although prices must be non-negative.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-007",
+      "version": "v2_dirty",
+      "table": "products",
+      "issue_type": "encoding_edge_case",
+      "column": "description",
+      "row_ids": [
+        "PROD-0030"
+      ],
+      "row_numbers": [
+        30
+      ],
+      "severity": "low",
+      "description": "Description contains deterministic non-ASCII UTF-8 text.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-008",
+      "version": "v2_dirty",
+      "table": "products",
+      "issue_type": "duplicate_candidate_key",
+      "column": "sku",
+      "row_ids": [
+        "PROD-0021"
+      ],
+      "row_numbers": [
+        21
+      ],
+      "severity": "medium",
+      "description": "SKU duplicates product PROD-0001.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-009",
+      "version": "v2_dirty",
+      "table": "product_variants",
+      "issue_type": "mixed_type",
+      "column": "is_active",
+      "row_ids": [
+        "VAR-0010"
+      ],
+      "row_numbers": [
+        10
+      ],
+      "severity": "medium",
+      "description": "Boolean-like field contains an inconsistent representation.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-010",
+      "version": "v2_dirty",
+      "table": "product_variants",
+      "issue_type": "orphan_record",
+      "column": "product_id",
+      "row_ids": [
+        "VAR-0070"
+      ],
+      "row_numbers": [
+        70
+      ],
+      "severity": "high",
+      "description": "Variant references a product that does not exist.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-011",
+      "version": "v2_dirty",
+      "table": "orders",
+      "issue_type": "null_value",
+      "column": "shipping_date",
+      "row_ids": [
+        "ORD-0015"
+      ],
+      "row_numbers": [
+        15
+      ],
+      "severity": "medium",
+      "description": "Shipping date is intentionally null.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-012",
+      "version": "v2_dirty",
+      "table": "orders",
+      "issue_type": "outlier",
+      "column": "total_amount",
+      "row_ids": [
+        "ORD-0030"
+      ],
+      "row_numbers": [
+        30
+      ],
+      "severity": "high",
+      "description": "Order total is an intentionally extreme amount.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-013",
+      "version": "v2_dirty",
+      "table": "orders",
+      "issue_type": "mixed_type",
+      "column": "shipping_fee",
+      "row_ids": [
+        "ORD-0040"
+      ],
+      "row_numbers": [
+        40
+      ],
+      "severity": "high",
+      "description": "Numeric shipping fee contains text.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-014",
+      "version": "v2_dirty",
+      "table": "orders",
+      "issue_type": "casing_inconsistency",
+      "column": "status",
+      "row_ids": [
+        "ORD-0041"
+      ],
+      "row_numbers": [
+        41
+      ],
+      "severity": "low",
+      "description": "Status uses lowercase instead of the canonical title case.",
+      "expected_detection": true,
+      "canonical_value": "Delivered"
+    },
+    {
+      "defect_id": "DIRTY-015",
+      "version": "v2_dirty",
+      "table": "orders",
+      "issue_type": "casing_inconsistency",
+      "column": "status",
+      "row_ids": [
+        "ORD-0042"
+      ],
+      "row_numbers": [
+        42
+      ],
+      "severity": "low",
+      "description": "Status uses uppercase instead of the canonical title case.",
+      "expected_detection": true,
+      "canonical_value": "Delivered"
+    },
+    {
+      "defect_id": "DIRTY-016",
+      "version": "v2_dirty",
+      "table": "orders",
+      "issue_type": "value_consistency_violation",
+      "column": "total_amount",
+      "row_ids": [
+        "ORD-0045"
+      ],
+      "row_numbers": [
+        45
+      ],
+      "severity": "high",
+      "description": "Total does not equal subtotal plus shipping fee plus tax.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-017",
+      "version": "v2_dirty",
+      "table": "orders",
+      "issue_type": "invalid_date",
+      "column": "order_date",
+      "row_ids": [
+        "ORD-0050"
+      ],
+      "row_numbers": [
+        50
+      ],
+      "severity": "high",
+      "description": "Order date is malformed.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-018",
+      "version": "v2_dirty",
+      "table": "orders",
+      "issue_type": "foreign_key_violation",
+      "column": "customer_id",
+      "row_ids": [
+        "ORD-0060"
+      ],
+      "row_numbers": [
+        60
+      ],
+      "severity": "high",
+      "description": "Order references a nonexistent customer.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-019",
+      "version": "v2_dirty",
+      "table": "order_items",
+      "issue_type": "invalid_numeric",
+      "column": "quantity",
+      "row_ids": [
+        "ITEM-0050"
+      ],
+      "row_numbers": [
+        50
+      ],
+      "severity": "high",
+      "description": "Quantity is negative although quantities must be positive.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-020",
+      "version": "v2_dirty",
+      "table": "order_items",
+      "issue_type": "mixed_type",
+      "column": "line_total",
+      "row_ids": [
+        "ITEM-0060"
+      ],
+      "row_numbers": [
+        60
+      ],
+      "severity": "high",
+      "description": "Line total is a non-numeric value.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-021",
+      "version": "v2_dirty",
+      "table": "order_items",
+      "issue_type": "orphan_record",
+      "column": "order_id",
+      "row_ids": [
+        "ITEM-0070"
+      ],
+      "row_numbers": [
+        70
+      ],
+      "severity": "high",
+      "description": "Order item has no parent order.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-022",
+      "version": "v2_dirty",
+      "table": "order_items",
+      "issue_type": "outlier",
+      "column": "quantity",
+      "row_ids": [
+        "ITEM-0080"
+      ],
+      "row_numbers": [
+        80
+      ],
+      "severity": "high",
+      "description": "Quantity is intentionally abnormally high.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-023",
+      "version": "v2_dirty",
+      "table": "order_items",
+      "issue_type": "missing_required_value",
+      "column": "item_id",
+      "row_ids": [
+        ""
+      ],
+      "row_numbers": [
+        90
+      ],
+      "severity": "high",
+      "description": "Required item identifier is intentionally empty.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-024",
+      "version": "v2_dirty",
+      "table": "tickets",
+      "issue_type": "null_value",
+      "column": "priority",
+      "row_ids": [
+        "TICK-0020"
+      ],
+      "row_numbers": [
+        20
+      ],
+      "severity": "medium",
+      "description": "Ticket priority is intentionally null.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-025",
+      "version": "v2_dirty",
+      "table": "tickets",
+      "issue_type": "invalid_date",
+      "column": "opened_at",
+      "row_ids": [
+        "TICK-0030"
+      ],
+      "row_numbers": [
+        30
+      ],
+      "severity": "high",
+      "description": "Opened timestamp is impossible and uses a malformed date.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-026",
+      "version": "v2_dirty",
+      "table": "tickets",
+      "issue_type": "outlier",
+      "column": "description",
+      "row_ids": [
+        "TICK-0040"
+      ],
+      "row_numbers": [
+        40
+      ],
+      "severity": "low",
+      "description": "Description is intentionally much longer than normal fixture text.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-027",
+      "version": "v2_dirty",
+      "table": "customers",
+      "issue_type": "duplicate_candidate_key",
+      "column": "email",
+      "row_ids": [
+        "CUST-0021"
+      ],
+      "row_numbers": [
+        21
+      ],
+      "severity": "medium",
+      "description": "Email duplicates customer CUST-0001.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-028",
+      "version": "v2_dirty",
+      "table": "ticket_events",
+      "issue_type": "inconsistent_date_format",
+      "column": "event_time",
+      "row_ids": [
+        "EVENT-0040"
+      ],
+      "row_numbers": [
+        40
+      ],
+      "severity": "medium",
+      "description": "Event timestamp uses a non-ISO date representation.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-029",
+      "version": "v2_dirty",
+      "table": "ticket_events",
+      "issue_type": "foreign_key_violation",
+      "column": "ticket_id",
+      "row_ids": [
+        "EVENT-0070"
+      ],
+      "row_numbers": [
+        70
+      ],
+      "severity": "high",
+      "description": "Ticket event references a nonexistent ticket.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-030",
+      "version": "v2_dirty",
+      "table": "customers",
+      "issue_type": "duplicate_record",
+      "column": "customer_id",
+      "row_ids": [
+        "CUST-0020"
+      ],
+      "row_numbers": [
+        20,
+        101
+      ],
+      "severity": "high",
+      "description": "Complete customer record is duplicated.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-031",
+      "version": "v2_dirty",
+      "table": "customers",
+      "issue_type": "duplicate_primary_key",
+      "column": "customer_id",
+      "row_ids": [
+        "CUST-0020"
+      ],
+      "row_numbers": [
+        20,
+        101
+      ],
+      "severity": "high",
+      "description": "Customer primary key is duplicated by the complete duplicate row.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-032",
+      "version": "v2_dirty",
+      "table": "ticket_events",
+      "issue_type": "duplicate_record",
+      "column": "event_id",
+      "row_ids": [
+        "EVENT-0020"
+      ],
+      "row_numbers": [
+        20,
+        301
+      ],
+      "severity": "medium",
+      "description": "Complete ticket-event record is duplicated.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "DIRTY-033",
+      "version": "v2_dirty",
+      "table": "customers",
+      "issue_type": "missing_required_value",
+      "column": "customer_id",
+      "row_ids": [
+        ""
+      ],
+      "row_numbers": [
+        90
+      ],
+      "severity": "high",
+      "description": "Required customer identifier is intentionally empty.",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "SCHEMA-001",
+      "version": "v3_schema_drift",
+      "table": "customers",
+      "issue_type": "schema_renamed_column",
+      "column": "full_name",
+      "new_column": "customer_name",
+      "row_ids": [],
+      "severity": "medium",
+      "expected_detection": true,
+      "description": "full_name was renamed to customer_name."
+    },
+    {
+      "defect_id": "SCHEMA-002",
+      "version": "v3_schema_drift",
+      "table": "customers",
+      "issue_type": "schema_added_column",
+      "column": "loyalty_tier",
+      "row_ids": [],
+      "severity": "low",
+      "expected_detection": true,
+      "description": "loyalty_tier was added for customer segmentation."
+    },
+    {
+      "defect_id": "SCHEMA-003",
+      "version": "v3_schema_drift",
+      "table": "customers",
+      "issue_type": "schema_removed_column",
+      "column": "phone",
+      "row_ids": [],
+      "severity": "medium",
+      "expected_detection": true,
+      "description": "phone was removed from the newer customer export."
+    },
+    {
+      "defect_id": "SCHEMA-004",
+      "version": "v3_schema_drift",
+      "table": "customers",
+      "issue_type": "schema_type_change",
+      "column": "is_active",
+      "from_type": "boolean_text",
+      "to_type": "integer_text",
+      "row_ids": [],
+      "severity": "medium",
+      "expected_detection": true,
+      "description": "is_active changed from true/false text to 1/0 text."
+    },
+    {
+      "defect_id": "SCHEMA-005",
+      "version": "v3_schema_drift",
+      "table": "products",
+      "issue_type": "category_drift",
+      "column": "category",
+      "old_values": [
+        "Home & Kitchen"
+      ],
+      "new_values": [
+        "Home & Living"
+      ],
+      "row_ids": [],
+      "severity": "medium",
+      "expected_detection": true,
+      "description": "Home & Kitchen was renamed to Home & Living."
+    },
+    {
+      "defect_id": "SCHEMA-006",
+      "version": "v3_schema_drift",
+      "table": "orders",
+      "issue_type": "inconsistent_date_format",
+      "column": "order_date",
+      "row_ids": [],
+      "from_format": "YYYY-MM-DD",
+      "to_format": "MM/DD/YYYY",
+      "description": "Order dates use a US slash-separated representation.",
+      "severity": "medium",
+      "expected_detection": true
+    },
+    {
+      "defect_id": "SCHEMA-007",
+      "version": "v3_schema_drift",
+      "table": "orders",
+      "issue_type": "schema_added_column",
+      "column": "fulfillment_center",
+      "row_ids": [],
+      "severity": "low",
+      "expected_detection": true,
+      "description": "fulfillment_center was added to order exports."
+    }
+  ],
+  "limitations": [
+    "The records are synthetic and are not representative of production distributions.",
+    "The NULL token is an explicit fixture convention because blank and quoted-empty CSV fields otherwise collapse when parsed by common CSV readers.",
+    "No repair suggestions or DataSage profiling behavior is included."
+  ]
+}

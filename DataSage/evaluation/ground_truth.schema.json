@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DataSage Ground Truth Corruption Manifest",
+  "description": "Produced by data/generators/corrupt_data.py. Records every defect deliberately injected into data/corrupted/, keyed by the stable row_uid that survives unchanged from data/clean/. This is the answer key detector_eval.py grades detector output against.",
+  "type": "object",
+  "required": ["seed", "defects"],
+  "additionalProperties": false,
+  "properties": {
+    "seed": {
+      "type": "integer",
+      "description": "The EVAL_RANDOM_SEED used to generate this manifest. Re-running the generators with the same seed must reproduce this file byte-for-byte."
+    },
+    "defects": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/defectEntry" }
+    }
+  },
+  "definitions": {
+    "defectEntry": {
+      "type": "object",
+      "required": ["table", "row_uid", "column", "defect_type", "original_value", "corrupted_value"],
+      "additionalProperties": false,
+      "properties": {
+        "table": {
+          "type": "string",
+          "description": "Which table this defect was injected into, e.g. \"customers\", \"orders\"."
+        },
+        "row_uid": {
+          "type": "string",
+          "description": "The stable identifier of the affected row. MUST match a row_uid present in the corresponding data/clean/<table>.csv file — this is what makes row-level grading possible."
+        },
+        "column": {
+          "type": ["string", "null"],
+          "description": "The affected column name, or null for a row-level defect (e.g. duplicate_row) that isn't localized to one column."
+        },
+        "defect_type": {
+          "type": "string",
+          "description": "One of the closed set of defect types this project's corruption script produces. Should correspond to a detector's issue_type in the detector contract (see detector_contract.py) for the manifest to be gradeable — an ungraded defect_type is not a bug, just not yet covered by a detector.",
+          "enum": [
+            "missing_value",
+            "invalid_email_format",
+            "duplicate_id",
+            "invalid_date_format",
+            "orphan_foreign_key",
+            "negative_value",
+            "duplicate_row",
+            "rare_category_likely_typo",
+            "statistical_outlier"
+          ]
+        },
+        "original_value": {
+          "description": "The value before corruption. null for row-level defects."
+        },
+        "corrupted_value": {
+          "description": "The value after corruption. null for row-level defects."
+        }
+      }
+    }
+  }
+}

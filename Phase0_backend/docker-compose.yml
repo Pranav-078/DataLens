@@ -1,0 +1,60 @@
+version: "3.9"
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5433:5432" # host 5433 -> container 5432, avoids clashing with a local pg
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  profiler:
+    build: ./backend-python
+    restart: unless-stopped
+    environment:
+      PROFILER_PORT: ${PROFILER_PORT}
+      LOG_LEVEL: ${LOG_LEVEL}
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend-node
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV}
+      API_PORT: ${API_PORT}
+      LOG_LEVEL: ${LOG_LEVEL}
+      DATABASE_URL: ${DATABASE_URL}
+      STORAGE_ROOT: ${STORAGE_ROOT}
+      MAX_FILE_SIZE_BYTES: ${MAX_FILE_SIZE_BYTES}
+      MAX_FILES_PER_UPLOAD: ${MAX_FILES_PER_UPLOAD}
+      PROFILER_BASE_URL: ${PROFILER_BASE_URL}
+      PROFILER_TIMEOUT_MS: ${PROFILER_TIMEOUT_MS}
+    ports:
+      - "8000:8000"
+    volumes:
+      - storage_data:/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      profiler:
+        condition: service_healthy
+
+volumes:
+  db_data:
+  storage_data:

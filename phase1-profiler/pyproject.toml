@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "datasage-phase1-profiler"
+version = "0.1.0"
+description = "Independent Phase 1 pandas data-quality profiling engine for DataSage"
+requires-python = ">=3.10"
+dependencies = [
+  "pandas>=2.0,<3",
+  "pyarrow>=14",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9",
+]
+
+[project.scripts]
+datasage-profile = "datasage_profiler.cli:main"
+datasage-evaluate = "datasage_profiler.evaluate:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.setuptools.packages.find]
+include = ["datasage_profiler*"]
