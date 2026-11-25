@@ -9,7 +9,7 @@ cp .env.example .env
 npm install
 npm run dev
 ```
-Open http://localhost:5173. Configure `VITE_API_BASE_URL=http://localhost:8000` in `.env` to connect to the Node API. Run the backend separately using the repository Docker Compose setup.
+Open http://localhost:5173. The Vite development server proxies `/api` requests to `http://localhost:8000`, avoiding local browser CORS issues. Run the backend separately using the repository Docker Compose setup. For deployment, set `VITE_API_BASE_URL` to your API gateway URL and configure CORS or a same-origin reverse proxy.
 
 ## Screens
 - Preview sign-in (UI only; not production authentication)
