@@ -1,16 +1,16 @@
 # DataLens
 
-DataLens is a multi-table CSV data quality and schema intelligence application. It is organized as a React frontend, a Node.js API, and a Python profiling engine.
+DataLens is a multi-table CSV data quality and schema intelligence application. The active application is maintained in one repository structure: React frontend, Node.js API, Python profiling engine, PostgreSQL metadata store and evaluation assets.
 
 ## Repository structure
 
 ```text
 DataLens/
-├── frontend/                 # React + Vite application (frontend work goes here)
+├── frontend/                 # React + Vite user interface
 ├── backend/
 │   ├── node-api/             # Express + TypeScript API, Prisma and PostgreSQL
-│   └── python-engine/        # FastAPI profiler and relationship inference engine
-├── data/                     # Data generators and development data
+│   └── python-engine/        # FastAPI profiler and relationship inference
+├── data/                     # Data generators
 ├── fixtures/                 # Sample CSV versions and ground-truth fixtures
 ├── docs/                     # Architecture and technical documentation
 ├── evaluation/               # Detector evaluation harness and tests
@@ -22,54 +22,71 @@ DataLens/
 
 ## Technology
 
-- Frontend: React and Vite (to be implemented)
-- API: Node.js, Express, TypeScript
-- Profiling: Python, FastAPI, pandas
-- Database: PostgreSQL with pgvector, managed through Prisma
+- Frontend: React, Vite, React Router, Axios and Lucide
+- API: Node.js, Express, TypeScript and Prisma
+- Profiling: Python, FastAPI, pandas and the DataSage profiler
+- Database: PostgreSQL with pgvector
 - Local orchestration: Docker Compose
 
-## Getting started
+## Run the application locally
 
-1. Install Node.js 20+, Python 3.11+, and Docker Desktop.
-2. Copy the environment template:
+### 1. Configure environment
 
-   ```bash
-   cp .env.example .env
-   ```
-
-3. Install backend dependencies:
-
-   ```bash
-   make install
-   ```
-
-4. Start the services:
-
-   ```bash
-   make dev
-   ```
-
-5. Check service health:
-
-   - Node API: http://localhost:8000/health
-   - Node readiness: http://localhost:8000/health/ready
-   - Python engine: http://localhost:8001/health
-
-See `docs/architecture.md` and the backend READMEs for implementation details.
-
-## Current implementation notes
-
-- The integrated backend and profiling engine are retained from the previous `DataSage/` application folder.
-- The Python relationship inference module and its endpoint are present. The Node upload/persistence pipeline still needs to be wired to that endpoint before relationships are available end-to-end through the public API.
-- The frontend directory is a clean starting point; the React application has not yet been scaffolded.
-- Historical phase folders are preserved under `archive/` for reference. They are not active application code.
-
-## Development commands
+Copy the root environment template:
 
 ```bash
-make install
-make dev
+cp .env.example .env
+```
+
+The Docker Compose DATABASE_URL must use the service hostname `db:5432`, not `localhost:5433`. The host port 5433 is only for tools running directly on your computer.
+
+### 2. Start backend services
+
+From the repository root:
+
+```bash
+docker compose up --build
+```
+
+The services are:
+- Node API: http://localhost:8000
+- Python profiler: http://localhost:8001
+- PostgreSQL: localhost:5433 (host access)
+
+Check API liveness at http://localhost:8000/health and readiness at http://localhost:8000/health/ready.
+
+### 3. Start frontend
+
+Open a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:5173. Vite proxies frontend API requests from `/api` to the Node API at `http://localhost:8000`.
+
+## Frontend-to-backend flow
+
+- API readiness: `GET /health/ready`
+- CSV upload and profiling: `POST /uploads/validate` (multipart field `files`, optional `projectId`)
+- Project metadata: `GET /projects/:projectId` and `GET /projects/:projectId/versions`
+- Version data: tables, issues, relationships and quality score endpoints under `/projects/:projectId/versions/:versionId`
+- Node orchestrates persistence and calls the Python profiler at `POST /internal/profile/tables`. Python performs profiling and relationship inference; Node persists the returned results in PostgreSQL.
+
+## Current limitations
+
+- The login screen is a frontend preview gate, not real authentication. Do not use it to protect production data.
+- Projects are currently created automatically by the first upload; there is no dedicated project-creation UI/API yet.
+- The frontend currently stores the active project and version IDs in browser local storage.
+- RAG and agentic AI are roadmap capabilities, not implemented features.
+
+## Tests and maintenance
+
+```bash
 make test
 make typecheck
-make down
-```
+``
+
+See `docs/architecture.md` for the system design. Historical phase snapshots are kept under `archive/` for reference and are not part of the active runtime.
