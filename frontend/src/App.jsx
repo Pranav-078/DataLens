@@ -1,4 +1,4 @@
-import {useState} from "react";
+import {useEffect,useState} from "react";
 import {Navigate,NavLink,Route,Routes,useNavigate} from "react-router-dom";
 import {Activity,ArrowUpRight,Bell,BookOpen,Bot,ChevronDown,Database,FileUp,GitBranch,LayoutDashboard,LogOut,Search,Sparkles,TriangleAlert} from "lucide-react";
 import {Dashboard} from "./pages/Dashboard";
@@ -19,7 +19,7 @@ export default function App(){
  const [versionId,setVersionId]=useState(()=>localStorage.getItem("datalens-version-id")||"");
  const [projectName,setProjectName]=useState(()=>localStorage.getItem("datalens-project-name")||"Your workspace");
  const navigate=useNavigate();
- useState(()=>{if(auth){checkApiReadiness().then(()=>setApiStatus("ready")).catch(()=>setApiStatus("offline"));}});
+ useEffect(()=>{if(!auth)return;let active=true;checkApiReadiness().then(()=>{if(active)setApiStatus("ready")}).catch(()=>{if(active)setApiStatus("offline")});return()=>{active=false}},[auth]);
  const logout=()=>{sessionStorage.removeItem("datalens-preview");setAuth(false);navigate("/login")};
  const complete=async result=>{setProjectId(result.projectId);setVersionId(result.versionId);localStorage.setItem("datalens-project-id",result.projectId);localStorage.setItem("datalens-version-id",result.versionId);try{const response=await getProjectSummary(result.projectId);const name=response.data.name||"DataLens project";setProjectName(name);localStorage.setItem("datalens-project-name",name)}catch{setProjectName("DataLens project")}navigate("/datasets")};
  if(!auth)return <Routes><Route path="/login" element={<LoginPage onContinue={()=>{sessionStorage.setItem("datalens-preview","yes");setAuth(true);navigate("/")}}/>}/><Route path="*" element={<Navigate to="/login" replace/>}/></Routes>;
