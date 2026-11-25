@@ -19,7 +19,7 @@ services:
       retries: 20
 
   profiler:
-    build: ./backend-python
+    build: ./backend/python-engine
     restart: unless-stopped
     environment:
       PROFILER_PORT: ${PROFILER_PORT}
@@ -33,7 +33,7 @@ services:
       retries: 10
 
   api:
-    build: ./backend-node
+    build: ./backend/node-api
     restart: unless-stopped
     environment:
       NODE_ENV: ${NODE_ENV}
