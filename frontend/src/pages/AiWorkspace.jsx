@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Bot, FileText, Paperclip, Send, Sparkles, LoaderCircle, BookOpen, Database, Mic, MicOff, Plus, MessageSquare } from "lucide-react";
-import { sendAiMessage, uploadKnowledgeDocument, listAiSessions, getAiSession, getApiError } from "../services/api";
+import { streamAiMessage, uploadKnowledgeDocument, listAiSessions, getAiSession, getApiError } from "../services/api";
 
 const welcome = { role: "assistant", content: "Hi! I'm the DataLens AI assistant. I can explain quality issues, explore your schema and relationships, and answer questions using your uploaded knowledge documents." };
 
@@ -91,23 +91,57 @@ export function AiWorkspace({ projectId, versionId }) {
     event?.preventDefault();
     const text = question.trim();
     if (!text || busy || !projectId) return;
+
     stopVoice();
     setQuestion("");
-    setMessages(current => [...current, { role: "user", content: text }]);
-    setBusy(true); setNotice(""); setVoiceError("");
+    setBusy(true);
+    setNotice("");
+    setVoiceError("");
+
+    const streamId = "stream-" + Date.now();
+    setMessages(current => [
+      ...current,
+      { role: "user", content: text },
+      { id: streamId, role: "assistant", content: "", streaming: true },
+    ]);
+
     try {
-      const response = await sendAiMessage(projectId, {
-        question: text, versionId: versionId || undefined, sessionId: sessionId || undefined,
+      await streamAiMessage(projectId, {
+        question: text,
+        versionId: versionId || undefined,
+        sessionId: sessionId || undefined,
+      }, event => {
+        if (event.type === "meta") {
+          setSessionId(event.sessionId);
+          setMessages(current => current.map(message => message.id === streamId
+            ? { ...message, toolUsed: event.toolUsed, sources: event.sources || [] }
+            : message));
+        } else if (event.type === "delta") {
+          setMessages(current => current.map(message => message.id === streamId
+            ? { ...message, content: message.content + (event.text || "") }
+            : message));
+        } else if (event.type === "done") {
+          setMessages(current => current.map(message => message.id === streamId
+            ? { ...message, id: event.messageId || streamId, streaming: false }
+            : message));
+        }
       });
-      setSessionId(response.data.sessionId);
-      setMessages(current => [...current, {
-        role: "assistant", content: response.data.answer,
-        sources: response.data.sources || [], toolUsed: response.data.toolUsed,
-      }]);
+      setMessages(current => current.map(message => message.id === streamId
+        ? { ...message, streaming: false }
+        : message));
       refreshSessions();
     } catch (error) {
-      setMessages(current => [...current, { role: "assistant", content: getApiError(error) }]);
-    } finally { setBusy(false); }
+      setMessages(current => current.map(message => message.id === streamId
+        ? {
+            ...message,
+            content: message.content || getApiError(error),
+            streaming: false,
+            failed: true,
+          }
+        : message));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const newChat = () => {
@@ -160,12 +194,13 @@ export function AiWorkspace({ projectId, versionId }) {
         <div className="chat-messages" ref={messageListRef}>
           {messages.map((message,index)=><div className={"chat-message "+message.role} key={message.id||index}>
             <div className="message-avatar">{message.role==="assistant"?<Bot size={16}/>:"You"}</div>
-            <div className="message-body"><div className="message-content">{message.content}</div>
+            <div className="message-body">{message.streaming && !message.content
+              ? <div className="typing-indicator"><i/><i/><i/> Thinking…</div>
+              : <div className={"message-content " + (message.streaming ? "streaming-content" : "")}>{message.content}</div>}
               {message.toolUsed&&message.toolUsed!=="none"&&<div className="tool-used"><Sparkles size={12}/> Data tool: {message.toolUsed.replaceAll("_"," ")}</div>}
               {message.sources?.length>0&&<div className="source-list"><strong>Sources</strong>{message.sources.map(source=><span key={source.citation}><FileText size={12}/> [{source.citation}] {source.filename} · passage {source.chunkIndex+1}</span>)}</div>}
             </div>
           </div>)}
-          {busy&&<div className="chat-message assistant"><div className="message-avatar"><Bot size={16}/></div><div className="typing-indicator"><i/><i/><i/> Thinking…</div></div>}
         </div>
         {voiceError&&<div className="voice-error" role="status">{voiceError}</div>}
         {listening&&<div className="voice-listening" role="status"><span/> Listening… Speak, then press the microphone again to stop.</div>}
