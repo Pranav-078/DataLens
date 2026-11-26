@@ -192,7 +192,7 @@ export function AiWorkspace({ projectId, versionId }) {
         if (event.type === "meta") {
           setSessionId(event.sessionId);
           setMessages(current => current.map(message => message.id === streamId
-            ? { ...message, toolUsed: event.toolUsed, sources: event.sources || [] }
+            ? { ...message, toolUsed: event.toolUsed, sources: event.sources || [], retrieval: event.retrieval || null }
             : message));
         } else if (event.type === "delta") {
           setMessages(current => current.map(message => message.id === streamId
@@ -366,7 +366,21 @@ export function AiWorkspace({ projectId, versionId }) {
                     <MessageContent content={message.content}/>
                   </div>}
               {message.toolUsed && message.toolUsed !== "none" && <div className="tool-used"><Sparkles size={12}/> Used data tool: {message.toolUsed.replaceAll("_", " ")}</div>}
-              {message.sources?.length > 0 && <div className="source-list"><strong>Sources used</strong>{message.sources.map(source => <span key={source.citation}><FileText size={12}/> [{source.citation}] {source.filename} · passage {source.chunkIndex + 1}</span>)}</div>}
+              {message.retrieval && <div className="rag-diagnostics">
+                <span><strong>RAG</strong> {message.retrieval.mode === "hybrid" ? "Hybrid search" : "Retrieval"}</span>
+                <span>{message.retrieval.returnedChunks} sources</span>
+                <span>Reranking: {message.retrieval.reranking}</span>
+                <span>{message.retrieval.retrievalMs} ms</span>
+              </div>}
+              {message.sources?.length > 0 && <div className="source-list">
+                <strong>Sources used</strong>
+                {message.sources.map(source => <span key={source.citation}>
+                  <FileText size={12}/> [{source.citation}] {source.filename}
+                  {source.sectionHeading ? " · " + source.sectionHeading : ""}
+                  {source.pageNumber ? " · page " + source.pageNumber : " · chunk " + (source.chunkIndex + 1)}
+                  {source.similarity != null ? " · " + (Number(source.similarity) * 100).toFixed(1) + "% vector similarity" : ""}
+                </span>)}
+              </div>}
               {message.failed && <button className="ai-retry" onClick={() => sendQuestion(message.retryText)} disabled={busy}><RefreshCw size={13}/> Retry response</button>}
               {message.role === "assistant" && !message.streaming && !message.failed && message.content && <div className="message-actions">
                 <button onClick={() => copyAnswer(message)} title="Copy answer" aria-label="Copy answer">{copiedMessage === message.id ? <Check size={13}/> : <Copy size={13}/>} {copiedMessage === message.id ? "Copied" : "Copy"}</button>
