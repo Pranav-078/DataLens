@@ -44,3 +44,21 @@ export async function generateText(prompt: string): Promise<string> {
   if (!text) throw new Error("Gemini returned an empty response.");
   return text;
 }
+
+/** Extract text from a PDF using Gemini's native PDF understanding. */
+export async function extractPdfText(buffer: Buffer): Promise<string> {
+  const result = await geminiRequest(`models/${CHAT_MODEL}:generateContent`, {
+    contents: [{
+      role: "user",
+      parts: [
+        { inline_data: { mime_type: "application/pdf", data: buffer.toString("base64") } },
+        { text: "Extract all readable text from this PDF. Preserve headings, lists, and table content where possible. Return only the extracted text. Do not summarize or add commentary." }
+      ]
+    }],
+    generationConfig: { temperature: 0, maxOutputTokens: 8192 },
+  });
+  const text = result?.candidates?.[0]?.content?.parts
+    ?.map((part: { text?: string }) => part.text || "").join("").trim();
+  if (!text) throw new Error("Gemini could not extract readable text from this PDF.");
+  return text;
+}
