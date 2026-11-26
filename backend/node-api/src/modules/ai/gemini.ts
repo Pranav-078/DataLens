@@ -6,7 +6,7 @@ const CHAT_MODEL = "gemini-2.5-flash";
 const EMBEDDING_MODEL = "gemini-embedding-001";
 
 async function geminiRequest(path: string, body: unknown): Promise<any> {
-  if (!config.GEMINI_API_KEY) throw Errors.profilerUnavailable(new Error("GEMINI_API_KEY is not configured"));
+  if (!config.GEMINI_API_KEY) throw new Error("Gemini is not configured. Add GEMINI_API_KEY to the server environment.");
   const response = await fetch(`${API_ROOT}/${path}?key=${encodeURIComponent(config.GEMINI_API_KEY)}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
