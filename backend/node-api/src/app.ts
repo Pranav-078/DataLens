@@ -3,7 +3,8 @@ import { requestId } from "./middleware/requestId.js";
 import { accessLog } from "./middleware/accessLog.js";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { uploadRouter } from "./modules/uploads/upload.routes.js";
-import { projectsRouter } from "./modules/projects/projects.routes.js";\nimport { aiRouter } from "./modules/ai/ai.routes.js";
+import { projectsRouter } from "./modules/projects/projects.routes.js";
+import { aiRouter } from "./modules/ai/ai.routes.js";
 import { notFoundHandler, errorHandler } from "./errors/errorHandler.js";
 
 /**
@@ -22,7 +23,8 @@ export function createApp() {
 
   app.use(healthRouter);
   app.use(uploadRouter);
-  app.use(projectsRouter);\n  app.use(aiRouter);
+  app.use(projectsRouter);
+  app.use(aiRouter);
 
   // Must be after all routes: catches anything that matched no route above.
   app.use(notFoundHandler);
