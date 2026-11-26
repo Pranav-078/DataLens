@@ -50,12 +50,8 @@ const envSchema = z.object({
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["AUTH_ENABLED"], message: "Set AUTH_ENABLED=true in production." });
   }
   if (value.AUTH_ENABLED) {
-    if (!value.AUTH_ADMIN_EMAIL) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ["AUTH_ADMIN_EMAIL"], message: "An admin email is required when authentication is enabled." });
-    }
-    if (!value.AUTH_ADMIN_PASSWORD_HASH) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ["AUTH_ADMIN_PASSWORD_HASH"], message: "A scrypt password hash is required when authentication is enabled." });
-    }
+    // User registration is the primary authentication flow. Optional legacy
+    // admin credentials remain supported for existing local installations.
     if (!value.AUTH_COOKIE_SECRET) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["AUTH_COOKIE_SECRET"], message: "A random cookie signing secret of at least 32 characters is required." });
     }
