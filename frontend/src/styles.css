@@ -130,3 +130,7 @@
 
 .streaming-content:after{content:"";display:inline-block;width:6px;height:13px;background:#8aaa76;margin-left:4px;vertical-align:-2px;animation:streamCursor .85s steps(2,start) infinite}
 @keyframes streamCursor{to{visibility:hidden}}
+
+.auth-loading{min-height:100vh;display:grid;place-items:center;color:#6d8177;font:600 13px "DM Sans",sans-serif}
+.login-password-label{margin-top:15px}
+.login-error{margin-top:12px}
