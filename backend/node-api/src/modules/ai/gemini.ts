@@ -25,10 +25,10 @@ export async function embedText(text: string): Promise<number[]> {
   const result = await geminiRequest(`models/${EMBEDDING_MODEL}:embedContent`, {
     model: `models/${EMBEDDING_MODEL}`,
     content: { parts: [{ text }] },
-    outputDimensionality: 768,
+    outputDimensionality: 1536,
   });
   const values = result?.embedding?.values;
-  if (!Array.isArray(values) || values.length !== 768 || !values.every((v: unknown) => typeof v === "number")) {
+  if (!Array.isArray(values) || values.length !== 1536 || !values.every((v: unknown) => typeof v === "number")) {
     throw new Error("Gemini returned an invalid embedding vector.");
   }
   return values as number[];
