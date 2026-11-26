@@ -80,7 +80,7 @@ Open http://localhost:5173. Vite proxies frontend API requests from `/api` to th
 - The login screen is a frontend preview gate, not real authentication. Do not use it to protect production data.
 - Projects are currently created automatically by the first upload; there is no dedicated project-creation UI/API yet.
 - The frontend currently stores the active project and version IDs in browser local storage.
-- RAG and agentic AI are roadmap capabilities, not implemented features.
+- Gemini-powered RAG and read-only agent tools are being integrated on the `chore/reorganize-project-structure` branch. See `backend/node-api/src/modules/ai/README.md` for the current API and setup notes.
 
 ## Tests and maintenance
 
