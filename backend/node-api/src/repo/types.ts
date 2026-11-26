@@ -31,6 +31,7 @@ export interface IdRow {
 
 export interface ProjectRow extends IdRow {
   name: string;
+  ownerUserId?: string | null;
   createdAt?: Date;
 }
 
@@ -130,6 +131,7 @@ export interface QualityScoreRow extends IdRow {
 
 export interface CreateProjectInput {
   name: string;
+  ownerUserId?: string;
 }
 
 export interface CreateVersionInput {
