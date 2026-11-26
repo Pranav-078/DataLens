@@ -10,7 +10,7 @@ const chatSchema = z.object({
   question: z.string().trim().min(2).max(4000),
   sessionId: z.string().uuid().optional(),
   versionId: z.string().uuid().optional(),
-});
+}).strict();
 
 function splitIntoChunks(text: string, maxChars = 1200, overlap = 180): string[] {
   const normalized = text.replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ").trim();
@@ -32,12 +32,17 @@ function splitIntoChunks(text: string, maxChars = 1200, overlap = 180): string[]
 
 export async function uploadKnowledgeDocument(req: Request, res: Response) {
   const file = req.file;
-  const projectId = typeof req.body?.projectId === "string" ? req.body.projectId : "";
+  const parsedProjectId = z.string().uuid().safeParse(req.params.projectId);
+  const projectId = parsedProjectId.success ? parsedProjectId.data : "";
   if (!file || !projectId) {
-    res.status(400).json({ error: { code: "INVALID_DOCUMENT_UPLOAD", message: "Provide projectId and a PDF, TXT, or Markdown file." } });
+    res.status(400).json({ error: { code: "INVALID_DOCUMENT_UPLOAD", message: "Provide a valid project ID and a PDF, TXT, or Markdown file." } });
     return;
   }
-  const supported = [".txt", ".md", ".pdf"].some(ext => file.originalname.toLowerCase().endsWith(ext));
+  const safeFilename = file.originalname
+    .replace(/[\\/\\0-\\x1f\\x7f]/g, "_")
+    .slice(0, 180);
+  const extension = safeFilename.toLowerCase().slice(safeFilename.lastIndexOf("."));
+  const supported = [".txt", ".md", ".pdf"].includes(extension);
   if (!supported) {
     res.status(415).json({ error: { code: "UNSUPPORTED_DOCUMENT_TYPE", message: "Only PDF, TXT, and Markdown documents are supported." } });
     return;
@@ -48,8 +53,20 @@ export async function uploadKnowledgeDocument(req: Request, res: Response) {
     return;
   }
 
-  const isPdf = file.originalname.toLowerCase().endsWith(".pdf");
-  const content = isPdf ? await extractPdfText(file.buffer) : file.buffer.toString("utf8");
+  const isPdf = extension === ".pdf";
+  if (file.size === 0 || (isPdf && file.buffer.subarray(0, 5).toString("ascii") !== "%PDF-")) {
+    res.status(400).json({ error: { code: "INVALID_DOCUMENT_CONTENT", message: "The uploaded file does not match its file type or is empty." } });
+    return;
+  }
+  let content: string;
+  try {
+    content = isPdf
+      ? await extractPdfText(file.buffer)
+      : new TextDecoder("utf-8", { fatal: true }).decode(file.buffer);
+  } catch {
+    res.status(400).json({ error: { code: "INVALID_DOCUMENT_CONTENT", message: "The text document must contain valid UTF-8 text." } });
+    return;
+  }
   if (!content.trim()) {
     res.status(400).json({ error: { code: "EMPTY_DOCUMENT", message: "The document contains no readable text." } });
     return;
@@ -57,9 +74,9 @@ export async function uploadKnowledgeDocument(req: Request, res: Response) {
 
   const document = await prisma.document.create({ data: {
     projectId,
-    filename: file.originalname,
+    filename: safeFilename,
     filePath: "database://document-chunks",
-    mimeType: file.mimetype || (isPdf ? "application/pdf" : "text/plain"),
+    mimeType: isPdf ? "application/pdf" : extension === ".md" ? "text/markdown" : "text/plain",
     fileSizeBytes: BigInt(file.size),
     status: "processing",
   } });
@@ -143,7 +160,12 @@ export async function postAiChat(req: Request, res: Response) {
   }
   const question = parsed.data.question;
   const versionId = parsed.data.versionId;
-  const projectId = req.params.projectId;
+  const parsedProjectId = z.string().uuid().safeParse(req.params.projectId);
+  if (!parsedProjectId.success) {
+    res.status(400).json({ error: { code: "INVALID_PROJECT_ID", message: "Project ID must be a valid UUID." } });
+    return;
+  }
+  const projectId = parsedProjectId.data;
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
   if (!project) { res.status(404).json({ error: { code: "PROJECT_NOT_FOUND", message: "Project was not found." } }); return; }
   const session = parsed.data.sessionId
@@ -197,7 +219,12 @@ export async function postAiChat(req: Request, res: Response) {
 }
 
 export async function listAiSessions(req: Request, res: Response) {
-  const projectId = req.params.projectId;
+  const parsedProjectId = z.string().uuid().safeParse(req.params.projectId);
+  if (!parsedProjectId.success) {
+    res.status(400).json({ error: { code: "INVALID_PROJECT_ID", message: "Project ID must be a valid UUID." } });
+    return;
+  }
+  const projectId = parsedProjectId.data;
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
   if (!project) { res.status(404).json({ error: { code: "PROJECT_NOT_FOUND", message: "Project was not found." } }); return; }
   const sessions = await prisma.chatSession.findMany({
@@ -210,7 +237,14 @@ export async function listAiSessions(req: Request, res: Response) {
 }
 
 export async function getAiSession(req: Request, res: Response) {
-  const { projectId, sessionId } = req.params;
+  const parsedProjectId = z.string().uuid().safeParse(req.params.projectId);
+  const parsedSessionId = z.string().uuid().safeParse(req.params.sessionId);
+  if (!parsedProjectId.success || !parsedSessionId.success) {
+    res.status(400).json({ error: { code: "INVALID_CHAT_SESSION_ID", message: "Project and session IDs must be valid UUIDs." } });
+    return;
+  }
+  const projectId = parsedProjectId.data;
+  const sessionId = parsedSessionId.data;
   const session = await prisma.chatSession.findFirst({
     where: { id: sessionId, projectId },
     select: { id: true, title: true, messages: {
