@@ -21,7 +21,7 @@ const envSchema = z.object({
   MAX_FILES_PER_UPLOAD: z.coerce.number().int().positive().default(10),
 
   PROFILER_BASE_URL: z.string().url("PROFILER_BASE_URL must be a valid URL"),
-  PROFILER_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+  PROFILER_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),\n\n  GEMINI_API_KEY: z.string().optional(),\n  GEMINI_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;
