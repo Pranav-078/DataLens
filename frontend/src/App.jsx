@@ -1,6 +1,6 @@
 import {useEffect,useState} from "react";
 import {Navigate,NavLink,Route,Routes,useNavigate} from "react-router-dom";
-import {Activity,ArrowUpRight,Bell,BookOpen,Bot,ChevronDown,Database,FileUp,GitBranch,LayoutDashboard,LogOut,Search,Sparkles,TriangleAlert} from "lucide-react";
+import {Activity,ArrowUpRight,Bell,BookOpen,ChevronDown,Database,FileUp,GitBranch,LayoutDashboard,LogOut,Search,Sparkles,TriangleAlert} from "lucide-react";
 import {Dashboard} from "./pages/Dashboard";
 import {UploadPage} from "./pages/UploadPage";
 import {DatasetsPage} from "./pages/DatasetsPage";
