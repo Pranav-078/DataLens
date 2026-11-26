@@ -329,7 +329,7 @@ export async function postAiChatStream(req: Request, res: Response) {
   res.flushHeaders();
 
   const sendEvent = (event: Record<string, unknown>) => {
-    if (!res.writableEnded) res.write("data: " + JSON.stringify(event) + "\\n\\n");
+    if (!res.writableEnded) res.write("data: " + JSON.stringify(event) + "\n\n");
   };
 
   sendEvent({
