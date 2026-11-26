@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { asyncHandler } from "../../middleware/asyncHandler.js";
 import {
   getAuthSession,
   postAuthLogin,
@@ -8,7 +9,7 @@ import {
 
 export const authRouter = Router();
 
-authRouter.get("/auth/session", getAuthSession);
-authRouter.post("/auth/register", postAuthRegister);
-authRouter.post("/auth/login", postAuthLogin);
+authRouter.get("/auth/session", asyncHandler(getAuthSession));
+authRouter.post("/auth/register", asyncHandler(postAuthRegister));
+authRouter.post("/auth/login", asyncHandler(postAuthLogin));
 authRouter.post("/auth/logout", postAuthLogout);
