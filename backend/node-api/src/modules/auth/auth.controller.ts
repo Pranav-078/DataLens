@@ -163,7 +163,7 @@ export async function getAuthSession(req: Request, res: Response): Promise<void>
     });
     if (!user) {
       setSessionCookie(res, "", 0);
-      res.status(200).json({ authEnabled: config.AUTH_ENABLED, authenticated: false, user: null });
+      res.status(200).json({ authEnabled: config.AUTH_ENABLED, registrationAllowed: config.AUTH_ALLOW_REGISTRATION, authenticated: false, user: null });
       return;
     }
     res.status(200).json({ authEnabled: config.AUTH_ENABLED, registrationAllowed: config.AUTH_ALLOW_REGISTRATION, authenticated: true, user: publicUser(user) });
