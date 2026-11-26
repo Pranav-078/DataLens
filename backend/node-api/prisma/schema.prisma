@@ -9,17 +9,33 @@ datasource db {
   extensions = [vector]
 }
 
-/// A named workspace the user creates. Everything else hangs off a project.
+/// Registered DataLens account. Passwords are stored as salted scrypt hashes only.
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  projects     Project[]
+
+  @@map("users")
+}
+
+/// A named workspace the user creates. Legacy/admin projects may remain unowned.
 model Project {
   id           String           @id @default(uuid())
   name         String
   description  String?
   settings     Json             @default("{}")
+  ownerUserId  String?          @map("owner_user_id")
   createdAt    DateTime         @default(now()) @map("created_at")
+  owner        User?            @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
   chatSessions ChatSession[]
   versions     DatasetVersion[]
   documents    Document[]
 
+  @@index([ownerUserId])
   @@map("projects")
 }
 
