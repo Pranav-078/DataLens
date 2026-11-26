@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../../db/prisma.js";
-import { embedText, extractPdfText, generateText } from "./gemini.js";
+import { embedText, extractPdfText, generateText, generateTextStream } from "./gemini.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 export const documentUploadMiddleware = upload.single("file");
