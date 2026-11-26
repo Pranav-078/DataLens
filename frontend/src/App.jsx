@@ -6,7 +6,8 @@ import {UploadPage} from "./pages/UploadPage";
 import {DatasetsPage} from "./pages/DatasetsPage";
 import {IssuesPage} from "./pages/IssuesPage";
 import {RelationshipsPage} from "./pages/RelationshipsPage";
-import {LoginPage} from "./pages/LoginPage";\nimport {AiWorkspace} from "./pages/AiWorkspace";
+import {LoginPage} from "./pages/LoginPage";
+import {AiWorkspace} from "./pages/AiWorkspace";
 import {checkApiReadiness,getProjectSummary} from "./services/api";
 function Shell({children,onLogout,apiStatus}){
  const links=[["/","Overview",LayoutDashboard],["/datasets","Data catalog",Database],["/upload","Upload CSVs",FileUp],["/issues","Quality issues",TriangleAlert],["/relationships","Relationships",GitBranch],["/ai","AI workspace",Sparkles]];
