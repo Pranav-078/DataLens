@@ -262,3 +262,11 @@ button.rel-map-table.child:hover,button.rel-map-table.child.focused{background:#
 .ai-session-list>button.active .ai-session-copy strong{color:#426b40}
 .ai-recent-hint{margin:8px 4px 0;font-size:8px;line-height:1.5;color:#9aa69e}
 .ai-history-loading{display:flex;align-items:center;justify-content:center;gap:9px;color:#829187;font-size:11px}
+
+/* RAG diagnostics and evidence source presentation */
+.rag-diagnostics{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.rag-diagnostics>span{display:inline-flex;align-items:center;padding:5px 7px;border:1px solid #e7eee7;border-radius:6px;background:#f8faf8;color:#7d8d82;font-size:8px}
+.rag-diagnostics>span:first-child{color:#54774d;background:#f1f7ed;border-color:#e1ecd9}
+.rag-diagnostics strong{margin-right:4px;color:#456a40}
+.source-list{max-width:100%}
+.source-list span{line-height:1.5;overflow-wrap:anywhere}
