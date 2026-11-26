@@ -127,3 +127,6 @@
 @media(max-width:440px){.rel-summary-grid,.rel-detail-grid{grid-template-columns:1fr 1fr}.rel-map-panel,.rel-results-panel,.rel-schema-panel{padding:14px}.rel-record-stats>span{font-size:7px}}
 
 .rel-table-columns em.fk-candidate{background:#edf4f7;color:#608999}
+
+.streaming-content:after{content:"";display:inline-block;width:6px;height:13px;background:#8aaa76;margin-left:4px;vertical-align:-2px;animation:streamCursor .85s steps(2,start) infinite}
+@keyframes streamCursor{to{visibility:hidden}}
