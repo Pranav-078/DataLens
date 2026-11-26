@@ -13,7 +13,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { AiWorkspace } from "./pages/AiWorkspace";
 import {
   checkApiReadiness, getProjectSummary, getProjectVersions, getAuthSession,
-  loginUser, logoutUser
+  loginUser, registerUser, logoutUser
 } from "./services/api";
 
 function Shell({ children, onLogout, apiStatus }) {
@@ -51,6 +51,7 @@ function Shell({ children, onLogout, apiStatus }) {
 export default function App() {
   const [auth, setAuth] = useState(false);
   const [authEnabled, setAuthEnabled] = useState(false);
+  const [registrationAllowed, setRegistrationAllowed] = useState(true);
   const [authChecking, setAuthChecking] = useState(true);
   const [authCheckError, setAuthCheckError] = useState("");
   const [apiStatus, setApiStatus] = useState("checking");
@@ -64,7 +65,17 @@ export default function App() {
     getAuthSession().then(response => {
       if (!active) return;
       setAuthEnabled(Boolean(response.data.authEnabled));
+      setRegistrationAllowed(response.data.registrationAllowed !== false);
       setAuth(Boolean(response.data.authenticated));
+      const restoredUser = response.data.user;
+      if (restoredUser?.projectId) {
+        setProjectId(restoredUser.projectId);
+        localStorage.setItem("datalens-project-id", restoredUser.projectId);
+      }
+      if (restoredUser?.projectName) {
+        setProjectName(restoredUser.projectName);
+        localStorage.setItem("datalens-project-name", restoredUser.projectName);
+      }
     }).catch(() => {
       if (!active) return;
       setAuthEnabled(true);
@@ -119,8 +130,28 @@ export default function App() {
     }
   };
 
+  const applyAuthenticatedUser = user => {
+    if (user?.projectId) {
+      setProjectId(user.projectId);
+      localStorage.setItem("datalens-project-id", user.projectId);
+    }
+    if (user?.projectName) {
+      setProjectName(user.projectName);
+      localStorage.setItem("datalens-project-name", user.projectName);
+    }
+  };
+
   const handleLogin = async credentials => {
-    await loginUser(credentials);
+    const response = await loginUser(credentials);
+    applyAuthenticatedUser(response.data.user);
+    setAuth(true);
+    setAuthCheckError("");
+    navigate("/");
+  };
+
+  const handleRegister = async credentials => {
+    const response = await registerUser(credentials);
+    applyAuthenticatedUser(response.data.user);
     setAuth(true);
     setAuthCheckError("");
     navigate("/");
@@ -152,7 +183,7 @@ export default function App() {
   };
 
   if (authChecking) return <div className="auth-loading">Checking DataLens access…</div>;
-  if (!auth) return <Routes><Route path="/login" element={<LoginPage authEnabled={authEnabled} onLogin={handleLogin} onContinue={continuePreview} initialNotice={authCheckError}/>}/><Route path="*" element={<Navigate to="/login" replace/>}/></Routes>;
+  if (!auth) return <Routes><Route path="/login" element={<LoginPage authEnabled={authEnabled} registrationAllowed={registrationAllowed} onLogin={handleLogin} onRegister={handleRegister} onContinue={continuePreview} initialNotice={authCheckError}/>}/><Route path="*" element={<Navigate to="/login" replace/>}/></Routes>;
 
   return <Shell onLogout={logout} apiStatus={apiStatus}>
     <Routes>
