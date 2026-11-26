@@ -28,3 +28,12 @@ export const getVersionIssues = (p, v, page = 1, pageSize = 100) =>
   api.get("/projects/" + p + "/versions/" + v + "/issues", { params: { page, pageSize } });
 export const getVersionRelationships = (p, v) => api.get("/projects/" + p + "/versions/" + v + "/relationships");
 export const getQualityScore = (p, v) => api.get("/projects/" + p + "/versions/" + v + "/quality-score");
+
+export const uploadKnowledgeDocument = (projectId, file) => {
+  const body = new FormData();
+  body.append("projectId", projectId);
+  body.append("file", file);
+  return api.post("/projects/" + projectId + "/knowledge", body, { timeout: 180000 });
+};
+export const sendAiMessage = (projectId, payload) =>
+  api.post("/projects/" + projectId + "/ai/chat", payload, { timeout: 180000 });
