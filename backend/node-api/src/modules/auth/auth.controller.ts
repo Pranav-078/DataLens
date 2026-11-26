@@ -332,3 +332,31 @@ export async function requireProjectOwnership(req: Request, res: Response, next:
     next(error);
   }
 }
+
+export async function requireUploadProjectOwnership(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const auth = res.locals.datalensAuth as AuthContext | undefined;
+  if (!config.AUTH_ENABLED || auth?.isAdmin) {
+    next();
+    return;
+  }
+
+  const projectId = z.string().uuid().safeParse(req.body?.projectId);
+  if (!projectId.success || !auth?.userId) {
+    authError(res, 400, "WORKSPACE_REQUIRED", "Your account workspace could not be identified. Sign in again and retry the upload.");
+    return;
+  }
+
+  try {
+    const project = await prisma.project.findFirst({
+      where: { id: projectId.data, ownerUserId: auth.userId },
+      select: { id: true },
+    });
+    if (!project) {
+      authError(res, 404, "PROJECT_NOT_FOUND", "The selected workspace was not found.");
+      return;
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
