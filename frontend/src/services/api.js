@@ -90,7 +90,9 @@ export const streamAiMessage = async (projectId, payload, onEvent) => {
       let boundary;
       while ((boundary = buffer.search(/\r?\n\r?\n/)) !== -1) {
         const block = buffer.slice(0, boundary);
-        const delimiter = buffer.slice(boundary).match(/^\r?\n\r?\n/)[0];
+        const delimiterMatch = buffer.slice(boundary).match(/^\r?\n\r?\n/);
+        if (!delimiterMatch) break;
+        const delimiter = delimiterMatch[0];
         buffer = buffer.slice(boundary + delimiter.length);
         dispatch(block);
       }
