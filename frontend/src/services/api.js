@@ -41,3 +41,62 @@ export const listAiSessions = projectId =>
   api.get("/projects/" + projectId + "/ai/sessions");
 export const getAiSession = (projectId, sessionId) =>
   api.get("/projects/" + projectId + "/ai/sessions/" + sessionId);
+
+
+/**
+ * Read a server-sent event stream from the authenticated DataLens API.
+ * The browser only receives transcript text; the Gemini key stays server-side.
+ */
+export const streamAiMessage = async (projectId, payload, onEvent) => {
+  const baseURL = (api.defaults.baseURL || "/api").replace(/\/$/, "");
+  const response = await fetch(
+    baseURL + "/projects/" + encodeURIComponent(projectId) + "/ai/chat/stream",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(payload),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body?.error?.message || "The AI request could not be completed.");
+  }
+  if (!response.body) throw new Error("Streaming is not supported by this browser.");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const dispatch = block => {
+    const data = block.split(/\r?\n/)
+      .filter(line => line.startsWith("data:"))
+      .map(line => line.slice(5).trim())
+      .join("\n");
+    if (!data) return;
+    let event;
+    try { event = JSON.parse(data); }
+    catch { return; }
+    onEvent?.(event);
+    if (event.type === "error") throw new Error(event.message || "The AI response could not be completed.");
+  };
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (value) buffer += decoder.decode(value, { stream: !done });
+      let boundary;
+      while ((boundary = buffer.search(/\r?\n\r?\n/)) !== -1) {
+        const block = buffer.slice(0, boundary);
+        const delimiter = buffer.slice(boundary).match(/^\r?\n\r?\n/)[0];
+        buffer = buffer.slice(boundary + delimiter.length);
+        dispatch(block);
+      }
+      if (done) break;
+    }
+    if (buffer.trim()) dispatch(buffer);
+  } finally {
+    reader.releaseLock();
+  }
+};
