@@ -14,6 +14,7 @@ import type { ValidatedFile } from "../modules/uploads/upload.validator.js";
 
 export interface ProcessUploadInput {
   projectId?: string;
+  ownerUserId?: string;
   validatedFiles: ValidatedFile[];
   /** Same order as validatedFiles — the caller (upload.controller.ts)
    * already relies on this exact guarantee when calling profileTables
@@ -55,7 +56,7 @@ export async function processUpload(
   db: ProfilingDb,
   input: ProcessUploadInput
 ): Promise<ProcessUploadResult> {
-  const project = await findOrCreateProject(db, input.projectId);
+  const project = await findOrCreateProject(db, input.projectId, input.ownerUserId);
   const { versionId, jobId, versionNumber } = await createVersionAndJob(db, { projectId: project.id });
 
   try {
