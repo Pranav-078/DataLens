@@ -87,7 +87,7 @@ export async function uploadKnowledgeDocument(req: Request, res: Response) {
 }
 
 async function retrieveContext(projectId: string, question: string, limit = 5) {
-  const vector = await embedText(question);
+  const vector = await embedText(question, "RETRIEVAL_QUERY");
   const vectorLiteral = "[" + vector.join(",") + "]";
   return prisma.$queryRawUnsafe<Array<{ document_id: string; filename: string; chunk_index: number; content: string; similarity: number }>>(
     "SELECT dc.document_id, d.filename, dc.chunk_index, dc.content, " +
