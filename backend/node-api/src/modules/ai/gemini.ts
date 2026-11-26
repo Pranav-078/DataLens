@@ -6,9 +6,9 @@ const EMBEDDING_MODEL = "gemini-embedding-001";
 
 async function geminiRequest(path: string, body: unknown): Promise<any> {
   if (!config.GEMINI_API_KEY) throw new Error("Gemini is not configured. Add GEMINI_API_KEY to the server environment.");
-  const response = await fetch(`${API_ROOT}/${path}?key=${encodeURIComponent(config.GEMINI_API_KEY)}`, {
+  const response = await fetch(`${API_ROOT}/${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-goog-api-key": config.GEMINI_API_KEY },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(config.GEMINI_TIMEOUT_MS),
   });
@@ -23,7 +23,7 @@ async function geminiRequest(path: string, body: unknown): Promise<any> {
 export async function embedText(text: string): Promise<number[]> {
   const result = await geminiRequest(`models/${EMBEDDING_MODEL}:embedContent`, {
     model: `models/${EMBEDDING_MODEL}`,
-    content: { parts: [{ text }] },
+    content: { parts: [{ text }] },\n    taskType: "RETRIEVAL_DOCUMENT",
     outputDimensionality: 1536,
   });
   const values = result?.embedding?.values;
