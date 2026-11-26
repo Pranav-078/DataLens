@@ -1,4 +1,6 @@
 import express from "express";
+import { authRouter } from "./modules/auth/auth.routes.js";
+import { requireAuth } from "./modules/auth/auth.controller.js";
 import { requestId } from "./middleware/requestId.js";
 import { accessLog } from "./middleware/accessLog.js";
 import { healthRouter } from "./modules/health/health.routes.js";
@@ -21,7 +23,10 @@ export function createApp() {
   app.use(requestId);
   app.use(accessLog);
 
+  app.use(authRouter);
   app.use(healthRouter);
+  // In production AUTH_ENABLED is mandatory; local preview can remain public.
+  app.use(requireAuth);
   app.use(uploadRouter);
   app.use(projectsRouter);
   app.use(aiRouter);
