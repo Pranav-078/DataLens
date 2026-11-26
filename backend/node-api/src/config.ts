@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * All configuration the Node service needs, validated once at startup.
  * Secrets are read only by the backend process and are never exposed to the
- * browser. Production refuses to start without the admin session guard.
+ * browser. Production refuses to start unless signed-cookie authentication is enabled.
  */
 const emptyToUndefined = (value: unknown) =>
   typeof value === "string" && value.trim() === "" ? undefined : value;
