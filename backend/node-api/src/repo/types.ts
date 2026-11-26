@@ -60,6 +60,8 @@ export interface DatasetColumnRow extends IdRow {
   columnName: string;
   ordinalPosition: number;
   inferredType: string | null;
+  isPkCandidate?: boolean;
+  pkConfidence?: number | null;
 }
 
 export interface ColumnStatisticsRow {
