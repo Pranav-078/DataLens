@@ -93,7 +93,7 @@ async function runAgentTool(tool: string, projectId: string, versionId?: string)
   const version = await prisma.datasetVersion.findFirst({ where: { id: versionId, projectId }, select: { id: true } });
   if (!version) return { message: "The selected dataset version does not belong to this project." };
   if (tool === "quality_issues") {
-    const issues = await prisma.qualityIssue.findMany({ where: { versionId }, orderBy: [{ severity: "asc" }], take: 30,
+    const issues = await prisma.qualityIssue.findMany({ where: { versionId }, take: 30,
       select: { issueType: true, dimension: true, severity: true, title: true, description: true, affectedRows: true, totalRows: true, affectedPercentage: true, suggestedAction: true } });
     return { tool, count: issues.length, issues };
   }
@@ -144,7 +144,7 @@ export async function postAiChat(req: Request, res: Response) {
   const toolResult = await runAgentTool(toolChoice, projectId, versionId);
   const context = retrieved.map((item, i) => `[D${i + 1}] ${item.filename} (chunk ${item.chunk_index + 1}, similarity ${Number(item.similarity).toFixed(3)}):\n${item.content}`).join("\n\n");
   const answer = await generateText(`You are DataLens, an evidence-grounded data quality assistant. Answer the user clearly. Use only the supplied dataset tool output and retrieved document context for factual claims about this project. If evidence is missing, say so. Cite retrieved document passages using [D1], [D2]. Never claim a data change was performed.\n\nQuestion: ${question}\n\nSelected tool: ${toolChoice}\nTool output (JSON): ${JSON.stringify(toolResult)}\n\nRetrieved knowledge: ${context || "No relevant project documents were found."}`);
-  const userMessage = await prisma.chatMessage.create({ data: { sessionId: session.id, role: "user", content: question } });
+  const userMessage = await prisma.chatMessage.create({ data: { sessionId: session.id, role: "user", content: question, retrievedChunkIds: [], retrievalScores: [] } });
   const assistantMessage = await prisma.chatMessage.create({ data: {
     sessionId: session.id, role: "assistant", content: answer,
     retrievedChunkIds: retrieved.map((item: any) => `${item.document_id}:${item.chunk_index}`),
