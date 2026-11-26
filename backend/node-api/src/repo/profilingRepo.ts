@@ -21,9 +21,14 @@ import { computeQualityScore } from "../modules/quality/qualityScore.js";
  * auto-created, since silently creating a project under an ID the caller
  * explicitly specified would hide a real mistake on their end.
  */
-export async function findOrCreateProject(db: ProfilingDb, projectId?: string) {
+export async function findOrCreateProject(db: ProfilingDb, projectId?: string, ownerUserId?: string) {
   if (!projectId) {
-    return db.project.create({ data: { name: `Upload ${new Date().toISOString()}` } });
+    return db.project.create({
+      data: {
+        name: `Upload ${new Date().toISOString()}`,
+        ...(ownerUserId ? { ownerUserId } : {}),
+      },
+    });
   }
   const project = await db.project.findUnique({ where: { id: projectId } });
   if (!project) {
