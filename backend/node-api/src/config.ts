@@ -38,6 +38,10 @@ const envSchema = z.object({
     value => value === undefined || value === "" ? "false" : value,
     z.enum(["true", "false"]).transform(value => value === "true")
   ),
+  AUTH_ALLOW_REGISTRATION: z.preprocess(
+    value => value === undefined || value === "" ? "true" : value,
+    z.enum(["true", "false"]).transform(value => value === "true")
+  ),
   AUTH_ADMIN_EMAIL: z.preprocess(emptyToUndefined, z.string().email().optional().transform(value => value?.toLowerCase())),
   // Format: 32 hex chars of salt, colon, 128 hex chars of scrypt hash.
   AUTH_ADMIN_PASSWORD_HASH: z.preprocess(
