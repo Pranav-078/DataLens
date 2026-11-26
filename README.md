@@ -90,3 +90,8 @@ make typecheck
 ``
 
 See `docs/architecture.md` for the system design. Historical phase snapshots are kept under `archive/` for reference and are not part of the active runtime.
+
+
+## Authentication
+
+The Node API supports an optional single-administrator, HttpOnly session-cookie mode. See [docs/authentication.md](docs/authentication.md) for setup. Production startup requires authentication to be enabled. The current mode is single-admin only and is not multi-tenant.
