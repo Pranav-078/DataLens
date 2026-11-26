@@ -105,5 +105,6 @@ export const streamAiMessage = async (projectId, payload, onEvent) => {
 };
 
 export const getAuthSession = () => api.get("/auth/session");
+export const registerUser = credentials => api.post("/auth/register", credentials);
 export const loginUser = credentials => api.post("/auth/login", credentials);
 export const logoutUser = () => api.post("/auth/logout");
