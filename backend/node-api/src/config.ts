@@ -21,7 +21,10 @@ const envSchema = z.object({
   MAX_FILES_PER_UPLOAD: z.coerce.number().int().positive().default(10),
 
   PROFILER_BASE_URL: z.string().url("PROFILER_BASE_URL must be a valid URL"),
-  PROFILER_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),\n\n  GEMINI_API_KEY: z.string().optional(),\n  GEMINI_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  PROFILER_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;
@@ -33,11 +36,15 @@ function loadConfig(): AppConfig {
     // Deliberately bypass the structured logger: at this point we don't
     // know if the logger itself is configured correctly, and this message
     // needs to be readable in a raw container-startup log either way.
-    console.error("\n✗ Invalid environment configuration:\n");
+    console.error("
+✗ Invalid environment configuration:
+");
     for (const issue of result.error.issues) {
       console.error(`  - ${issue.path.join(".") || "(root)"}: ${issue.message}`);
     }
-    console.error("\nCheck your .env file against .env.example.\n");
+    console.error("
+Check your .env file against .env.example.
+");
     process.exit(1);
   }
 
