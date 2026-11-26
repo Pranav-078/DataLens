@@ -231,12 +231,37 @@ export async function listAiSessions(req: Request, res: Response) {
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
   if (!project) { res.status(404).json({ error: { code: "PROJECT_NOT_FOUND", message: "Project was not found." } }); return; }
   const sessions = await prisma.chatSession.findMany({
-    where: { projectId }, orderBy: { createdAt: "desc" }, take: 30,
-    select: { id: true, title: true, createdAt: true, _count: { select: { messages: true } } },
+    where: { projectId },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    select: {
+      id: true,
+      title: true,
+      createdAt: true,
+      messages: {
+        orderBy: { createdAt: "desc" },
+        take: 2,
+        select: { role: true, content: true, createdAt: true },
+      },
+      _count: { select: { messages: true } },
+    },
   });
-  res.status(200).json({ sessions: sessions.map(session => ({
-    id: session.id, title: session.title, createdAt: session.createdAt, messageCount: session._count.messages,
-  })) });
+
+  const recentSessions = sessions.map(session => {
+    const latestMessage = session.messages[0];
+    const latestAssistantMessage = session.messages.find(message => message.role === "assistant");
+    return {
+      id: session.id,
+      title: session.title || "New conversation",
+      createdAt: session.createdAt,
+      updatedAt: latestMessage?.createdAt ?? session.createdAt,
+      messageCount: session._count.messages,
+      preview: latestAssistantMessage?.content ?? latestMessage?.content ?? "",
+      previewRole: latestAssistantMessage ? "assistant" : latestMessage?.role ?? null,
+    };
+  }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).slice(0, 4);
+
+  res.status(200).json({ sessions: recentSessions });
 }
 
 export async function getAiSession(req: Request, res: Response) {
