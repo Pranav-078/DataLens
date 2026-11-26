@@ -360,7 +360,18 @@ export async function postAiChatStream(req: Request, res: Response) {
     });
     sendEvent({ type: "done", messageId: assistantMessage.id });
   } catch (error) {
-    sendEvent({ type: "error", message: "The AI response could not be completed. Please try again." });
+    const providerMessage = error instanceof Error ? error.message : "";
+    let message = "The AI response could not be completed. Please try again.";
+    if (/Gemini is not configured/i.test(providerMessage)) {
+      message = "Gemini API key is missing on the server. Add GEMINI_API_KEY to your root .env file and rebuild the API container.";
+    } else if (/429|RESOURCE_EXHAUSTED|quota/i.test(providerMessage)) {
+      message = "Gemini API quota or rate limit was reached. Check your Gemini API usage and try again later.";
+    } else if (/401|403|API key|permission denied|unauthorized/i.test(providerMessage)) {
+      message = "Gemini rejected the server API credentials. Check GEMINI_API_KEY in your root .env file.";
+    } else if (providerMessage) {
+      message = "Gemini request failed: " + providerMessage.slice(0, 240);
+    }
+    sendEvent({ type: "error", message });
   } finally {
     if (!res.writableEnded) res.end();
   }
