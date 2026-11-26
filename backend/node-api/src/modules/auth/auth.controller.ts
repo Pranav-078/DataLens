@@ -129,7 +129,9 @@ export function postAuthLogin(req: Request, res: Response): void {
   }
 
   const email = parsed.data.email.toLowerCase();
-  if (email !== config.AUTH_ADMIN_EMAIL || !passwordMatches(parsed.data.password)) {
+  // Always perform the scrypt work to reduce email-enumeration timing differences.
+  const validPassword = passwordMatches(parsed.data.password);
+  if (email !== config.AUTH_ADMIN_EMAIL || !validPassword) {
     registerFailure(ip);
     res.status(401).json({ error: { code: "INVALID_CREDENTIALS", message: "Email or password is incorrect." } });
     return;
