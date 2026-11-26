@@ -30,7 +30,7 @@ function formatEvidence(key, value) {
   return String(value);
 }
 
-function GraphRelationship({ item, active, onSelect, onFocusTable }) {
+function GraphRelationship({ item, active, onSelect }) {
   return <button type="button" className={"rel-graph-edge-card " + (active ? "active" : "")} onClick={onSelect} aria-pressed={active}>
     <span className="rel-graph-node parent">
       <span className="rel-graph-node-icon"><KeyRound size={15}/></span>
@@ -51,10 +51,6 @@ function GraphRelationship({ item, active, onSelect, onFocusTable }) {
       <span><CheckCircle2 size={13}/>{percent(item.valueOverlap)} overlap</span>
       <span className={n(item.orphanCount) ? "warn" : "good"}>{n(item.orphanCount) ? <CircleAlert size={13}/> : <ShieldCheck size={13}/>} {count(item.orphanCount)} orphans</span>
       <span className="rel-graph-open">{active ? "Selected" : "Inspect evidence"} <ChevronRight size={13}/></span>
-    </span>
-    <span className="sr-only" onClick={event => event.stopPropagation()}>
-      <span onClick={() => onFocusTable(item.parentTable)}>{item.parentTable}</span>
-      <span onClick={() => onFocusTable(item.childTable)}>{item.childTable}</span>
     </span>
   </button>;
 }
@@ -245,7 +241,7 @@ export function RelationshipsPage({ projectId, versionId }) {
         {loading && <div className="loading-state">Loading relationship model…</div>}
         {!loading && view === "graph" && <div className="rel-graph-canvas">
           <div className="rel-graph-legend"><span><i className="parent"/> Parent table</span><span><i className="child"/> Child table</span><span><i className="edge"/> Inferred link</span></div>
-          {visible.length ? <div className="rel-graph-list">{visible.map(item => <GraphRelationship key={item.id} item={item} active={String(item.id) === String(selectedItem?.id)} onSelect={() => selectRelationship(item.id)} onFocusTable={focusTable}/>)}</div> : <div className="rel-map-empty">{items.length ? "No relationships match the current search or filters." : "No relationship candidates have been persisted for this version."}</div>}
+          {visible.length ? <div className="rel-graph-list">{visible.map(item => <GraphRelationship key={item.id} item={item} active={String(item.id) === String(selectedItem?.id)} onSelect={() => selectRelationship(item.id)} />)}</div> : <div className="rel-map-empty">{items.length ? "No relationships match the current search or filters." : "No relationship candidates have been persisted for this version."}</div>}
         </div>}
         {!loading && view === "table" && <TableView tables={tables} items={visible} focusedTable={focusedTable} selectedId={selectedItem?.id} onFocusTable={focusTable} onSelectRelationship={selectRelationship}/>}
         <div className="rel-integrity-note"><ShieldCheck size={15}/> Inferred links are advisory. Validate them before treating them as enforced primary or foreign keys.</div>
