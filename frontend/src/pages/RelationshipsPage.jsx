@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, CheckCircle2, ChevronDown, CircleAlert, GitBranch, KeyRound, Link2, Network, RefreshCw, ShieldCheck, Table2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { getVersionRelationships, getVersionTables, getApiError } from "../services/api";
+import { getVersionRelationships, getApiError } from "../services/api";
 
 const n = value => Number(value ?? 0);
 const count = value => n(value).toLocaleString();
@@ -52,12 +52,10 @@ export function RelationshipsPage({ projectId, versionId }) {
     if (!projectId || !versionId) return;
     setLoading(true); setError("");
     try {
-      const [relationshipResponse, tableResponse] = await Promise.all([
-        getVersionRelationships(projectId, versionId), getVersionTables(projectId, versionId),
-      ]);
+      const relationshipResponse = await getVersionRelationships(projectId, versionId);
       const next = relationshipResponse.data.relationships || [];
       setItems(next);
-      setTables(relationshipResponse.data.tables || tableResponse.data.tables || []);
+      setTables(relationshipResponse.data.tables || []);
       setSelected(current => next.some(item => item.id === current) ? current : next[0]?.id || "");
     } catch (err) { setError(getApiError(err)); }
     finally { setLoading(false); }
