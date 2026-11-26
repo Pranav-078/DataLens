@@ -2,7 +2,8 @@ import axios from "axios";
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
-  timeout: 120000
+  timeout: 120000,
+  withCredentials: true
 });
 
 export const getApiError = error =>
@@ -100,3 +101,7 @@ export const streamAiMessage = async (projectId, payload, onEvent) => {
     reader.releaseLock();
   }
 };
+
+export const getAuthSession = () => api.get("/auth/session");
+export const loginUser = credentials => api.post("/auth/login", credentials);
+export const logoutUser = () => api.post("/auth/logout");
