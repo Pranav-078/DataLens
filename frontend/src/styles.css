@@ -125,3 +125,5 @@
 @media(max-width:1050px){.rel-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.rel-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.rel-map-item,.rel-record-route{grid-template-columns:1fr}.rel-map-edge,.rel-record-link{display:none}.rel-toolbar{align-items:stretch;flex-direction:column}.rel-toolbar>input{max-width:none}.rel-record-stats{gap:9px;flex-wrap:wrap}.rel-record-expand{margin-left:0}.rel-evidence-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.rel-page>.page-heading{align-items:flex-start;flex-direction:column}.rel-table-grid{grid-template-columns:1fr}}
 @media(max-width:440px){.rel-summary-grid,.rel-detail-grid{grid-template-columns:1fr 1fr}.rel-map-panel,.rel-results-panel,.rel-schema-panel{padding:14px}.rel-record-stats>span{font-size:7px}}
+
+.rel-table-columns em.fk-candidate{background:#edf4f7;color:#608999}
