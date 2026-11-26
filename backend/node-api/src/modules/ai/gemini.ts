@@ -117,6 +117,7 @@ export async function* generateTextStream(prompt: string): AsyncGenerator<string
     while (true) {
       const { value, done } = await reader.read();
       if (value) buffer += decoder.decode(value, { stream: !done });
+      else if (done) buffer += decoder.decode();
       const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() || "";
       for (const line of lines) {
