@@ -31,7 +31,6 @@ export const getQualityScore = (p, v) => api.get("/projects/" + p + "/versions/"
 
 export const uploadKnowledgeDocument = (projectId, file) => {
   const body = new FormData();
-  body.append("projectId", projectId);
   body.append("file", file);
   return api.post("/projects/" + projectId + "/knowledge", body, { timeout: 180000 });
 };
