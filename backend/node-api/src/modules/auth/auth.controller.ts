@@ -149,7 +149,7 @@ function publicUser(user: { id: string; name: string; email: string; projects?: 
 export async function getAuthSession(req: Request, res: Response): Promise<void> {
   const session = readSession(req);
   if (!session) {
-    res.status(200).json({ authEnabled: config.AUTH_ENABLED, authenticated: false, user: null });
+    res.status(200).json({ authEnabled: config.AUTH_ENABLED, registrationAllowed: config.AUTH_ALLOW_REGISTRATION, authenticated: false, user: null });
     return;
   }
 
@@ -166,12 +166,13 @@ export async function getAuthSession(req: Request, res: Response): Promise<void>
       res.status(200).json({ authEnabled: config.AUTH_ENABLED, authenticated: false, user: null });
       return;
     }
-    res.status(200).json({ authEnabled: config.AUTH_ENABLED, authenticated: true, user: publicUser(user) });
+    res.status(200).json({ authEnabled: config.AUTH_ENABLED, registrationAllowed: config.AUTH_ALLOW_REGISTRATION, authenticated: true, user: publicUser(user) });
     return;
   }
 
   res.status(200).json({
     authEnabled: config.AUTH_ENABLED,
+    registrationAllowed: config.AUTH_ALLOW_REGISTRATION,
     authenticated: true,
     user: { id: null, name: "Administrator", email: session.email, projectId: null, projectName: "Administrator workspace" },
   });
