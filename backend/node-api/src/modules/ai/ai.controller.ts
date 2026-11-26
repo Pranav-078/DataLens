@@ -85,12 +85,14 @@ export async function uploadKnowledgeDocument(req: Request, res: Response) {
   try {
     const chunks = splitIntoChunks(content);
     for (let index = 0; index < chunks.length; index++) {
-      const vector = await embedText(chunks[index]);
+      const chunk = chunks[index];
+      if (chunk === undefined) continue;
+      const vector = await embedText(chunk);
       const vectorLiteral = "[" + vector.join(",") + "]";
       await prisma.$executeRawUnsafe(
         "INSERT INTO document_chunks (id, document_id, chunk_index, content, token_count, embedding) " +
         "VALUES (gen_random_uuid(), $1::uuid, $2, $3, $4, $5::vector)",
-        document.id, index, chunks[index], Math.ceil(chunks[index].length / 4), vectorLiteral
+        document.id, index, chunk, Math.ceil(chunk.length / 4), vectorLiteral
       );
     }
     await prisma.document.update({ where: { id: document.id }, data: { status: "ready", chunkCount: chunks.length } });
