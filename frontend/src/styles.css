@@ -426,3 +426,31 @@ button.rel-map-table.child:hover,button.rel-map-table.child.focused{background:#
   .rel-graph-node-copy code{font-size:6px}
   .rel-graph-edge-stats>span{font-size:7px}
 }
+
+
+/* Dataset version history */
+.version-history-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,430px);align-items:center;gap:15px;padding:17px 19px}
+.version-history-copy{display:flex;align-items:center;gap:11px;min-width:0}
+.version-history-icon{height:36px;width:36px;flex:none;display:grid;place-items:center;border-radius:9px;background:#edf5e8;color:#648a55}
+.version-history-copy h3{margin:0;font:700 12px Manrope,sans-serif;color:#365044}
+.version-history-copy p{margin:5px 0 0;font-size:9px;line-height:1.5;color:#8d9b92}
+.version-history-select-wrap{display:flex;align-items:center;gap:8px;min-width:0}
+.version-history-select-wrap label{font-size:8px;font-weight:800;letter-spacing:.6px;color:#89988f;white-space:nowrap}
+.version-history-select-wrap select{height:35px;min-width:0;flex:1;padding:0 10px;border:1px solid #dfe8e1;border-radius:7px;background:#fff;color:#41594a;font:10px "DM Sans",sans-serif;outline:none}
+.version-history-select-wrap select:focus{border-color:#91b17d;box-shadow:0 0 0 3px #e7f0e1}
+.version-history-select-wrap select:disabled{background:#f7f9f7;color:#a0aaa3}
+.version-history-status{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding-top:11px;border-top:1px solid #edf1ed}
+.version-state{display:inline-flex;align-items:center;gap:5px;padding:5px 7px;border-radius:5px;background:#f1f4f1;color:#859188;font-size:8px;font-weight:750;text-transform:capitalize}
+.version-state i{width:5px;height:5px;border-radius:50%;background:#a4aea7}
+.version-state.ready{background:#eff7eb;color:#5e8954}.version-state.ready i{background:#79a968}
+.version-state.failed{background:#fff2ed;color:#bd7059}.version-state.failed i{background:#cf816b}
+.version-state.profiling,.version-state.pending{background:#fff8e9;color:#a78a4c}.version-state.profiling i,.version-state.pending i{background:#d7b15f}
+.version-ready-note,.version-failed-note{display:inline-flex;align-items:center;gap:5px;font-size:8px;color:#849187}
+.version-ready-note{color:#628b59}.version-failed-note{color:#b8765b}
+.catalog-summary>div small{font-size:8px;color:#98a49c;line-height:1.4}
+@media(max-width:760px){
+  .version-history-panel{grid-template-columns:1fr;gap:12px;padding:14px}
+  .version-history-select-wrap{align-items:flex-start;flex-direction:column}
+  .version-history-select-wrap select{width:100%;flex:none}
+  .version-history-status{grid-column:auto;flex-wrap:wrap}
+}
