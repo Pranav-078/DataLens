@@ -97,7 +97,11 @@ export function RelationshipsPage({ projectId, versionId }) {
     </section>
     <section className="panel rel-schema-panel">
       <div className="rel-section-heading"><div><span className="eyebrow">TABLE CATALOG</span><h2>Tables and key candidates</h2><p>Primary-key labels below indicate profiler candidates, not declared database constraints.</p></div><span className="rel-count">{tables.length} tables</span></div>
-      {tables.length ? <div className="rel-table-grid">{tables.map(table=><article className="rel-table-card" key={table.id || table.tableName}><header><Table2 size={15}/><strong>{table.tableName}</strong><span>{count(table.rowCount)} rows</span></header><div className="rel-table-columns">{(table.columns || []).map(column=><div key={column.id || column.columnName}><span>{column.columnName}</span><small>{column.inferredType || "unknown"}</small>{column.isPkCandidate && <em>PK candidate</em>}</div>)}</div></article>)}</div> : <div className="rel-map-empty">Table metadata is unavailable for this version.</div>}
+      {tables.length ? <div className="rel-table-grid">{tables.map(table=><article className="rel-table-card" key={table.id || table.tableName}><header><Table2 size={15}/><strong>{table.tableName}</strong><span>{count(table.rowCount)} rows</span></header><div className="rel-table-columns">{(table.columns || []).map(column=>{
+        const isParent = items.some(item => item.parentTable === table.tableName && item.parentColumn === column.columnName);
+        const isChild = items.some(item => item.childTable === table.tableName && item.childColumn === column.columnName);
+        return <div key={column.id || column.columnName}><span>{column.columnName}</span><small>{column.inferredType || "unknown"}</small>{(column.isPkCandidate || isParent) && <em>PK candidate</em>}{isChild && <em className="fk-candidate">FK candidate</em>}</div>;
+      })}</div></article>)}</div> : <div className="rel-map-empty">Table metadata is unavailable for this version.</div>}
     </section>
     <section className="panel rel-results-panel">
       <div className="rel-section-heading"><div><span className="eyebrow">DETECTION RESULTS</span><h2>Candidate relationships</h2><p>Expand a result to inspect supporting evidence and orphan samples.</p></div><span className="rel-count">{visible.length} / {items.length}</span></div>
