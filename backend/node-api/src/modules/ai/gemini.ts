@@ -1,5 +1,4 @@
 import { config } from "../../config.js";
-import { Errors } from "../../errors/AppError.js";
 
 const API_ROOT = "https://generativelanguage.googleapis.com/v1beta";
 const CHAT_MODEL = "gemini-2.5-flash";
