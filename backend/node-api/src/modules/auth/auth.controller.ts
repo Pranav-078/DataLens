@@ -105,7 +105,7 @@ export function getAuthSession(req: Request, res: Response): void {
   const session = readSession(req);
   res.status(200).json({
     authEnabled: config.AUTH_ENABLED,
-    authenticated: !config.AUTH_ENABLED || Boolean(session),
+    authenticated: Boolean(session),
     user: session ? { email: session.email } : null,
   });
 }
