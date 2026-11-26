@@ -16,7 +16,7 @@ Set `GEMINI_API_KEY` in the repository-root `.env`. The key is read only by the 
 
 - `file`: a UTF-8 `.txt` or `.md` file (max 10 MB)
 
-The endpoint chunks the document, requests Gemini embeddings, and persists the chunks in the existing `documents` and `document_chunks` tables.
+The endpoint extracts text where needed, chunks the document, requests Gemini embeddings, and persists the chunks in the existing `documents` and `document_chunks` tables.
 
 ### Ask the DataLens assistant
 
@@ -34,7 +34,7 @@ The planner can select one read-only tool: `quality_issues`, `schema`, `relation
 
 ## Limitations and safety
 
-- Current knowledge upload supports UTF-8 TXT and Markdown only; PDF extraction is not wired yet.
+- Knowledge upload supports PDF, UTF-8 TXT, and Markdown. PDF text extraction uses Gemini's native PDF input support. Scanned/image-only pages may not yield complete text.
 - Tool execution is read-only. It does not execute generated SQL or modify datasets.
 - This is a project-scoped preview API, not an authenticated multi-tenant production endpoint. Add real authentication and authorization before exposing it publicly.
 - Gemini free-tier data-use terms may differ from paid-tier terms. Review Google's current terms before indexing confidential data.
