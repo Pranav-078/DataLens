@@ -39,7 +39,8 @@ export async function uploadKnowledgeDocument(req: Request, res: Response) {
     return;
   }
   const safeFilename = file.originalname
-    .replace(/[\\/\\0-\\x1f\\x7f]/g, "_")
+    .split(/[\\/]/).pop()!
+    .replace(/[\x00-\x1f\x7f]/g, "_")
     .slice(0, 180);
   const extension = safeFilename.toLowerCase().slice(safeFilename.lastIndexOf("."));
   const supported = [".txt", ".md", ".pdf"].includes(extension);
