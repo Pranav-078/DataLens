@@ -13,13 +13,16 @@ const chatSchema = z.object({
 });
 
 function splitIntoChunks(text: string, maxChars = 1200, overlap = 180): string[] {
-  const normalized = text.replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ").trim();
+  const normalized = text.replace(/\r
+/g, "
+").replace(/[ \t]+/g, " ").trim();
   const chunks: string[] = [];
   let start = 0;
   while (start < normalized.length) {
     let end = Math.min(start + maxChars, normalized.length);
     if (end < normalized.length) {
-      const boundary = normalized.lastIndexOf("\n", end);
+      const boundary = normalized.lastIndexOf("
+", end);
       if (boundary > start + maxChars * 0.6) end = boundary;
     }
     const chunk = normalized.slice(start, end).trim();
@@ -46,7 +49,8 @@ export async function uploadKnowledgeDocument(req: Request, res: Response) {
     res.status(404).json({ error: { code: "PROJECT_NOT_FOUND", message: "Project was not found." } });
     return;
   }
-  const isPdf = file.originalname.toLowerCase().endsWith(".pdf");\n  const content = isPdf ? await extractPdfText(file.buffer) : file.buffer.toString("utf8");
+  const isPdf = file.originalname.toLowerCase().endsWith(".pdf");
+  const content = isPdf ? await extractPdfText(file.buffer) : file.buffer.toString("utf8");
   if (!content.trim()) {
     res.status(400).json({ error: { code: "EMPTY_DOCUMENT", message: "The document contains no text." } });
     return;
@@ -142,8 +146,18 @@ export async function postAiChat(req: Request, res: Response) {
     if (["quality_issues", "schema", "relationships", "quality_score"].includes(candidate.tool)) toolChoice = candidate.tool;
   } catch { toolChoice = "none"; }
   const toolResult = await runAgentTool(toolChoice, projectId, versionId);
-  const context = retrieved.map((item, i) => `[D${i + 1}] ${item.filename} (chunk ${item.chunk_index + 1}, similarity ${Number(item.similarity).toFixed(3)}):\n${item.content}`).join("\n\n");
-  const answer = await generateText(`You are DataLens, an evidence-grounded data quality assistant. Answer the user clearly. Use only the supplied dataset tool output and retrieved document context for factual claims about this project. If evidence is missing, say so. Cite retrieved document passages using [D1], [D2]. Never claim a data change was performed.\n\nQuestion: ${question}\n\nSelected tool: ${toolChoice}\nTool output (JSON): ${JSON.stringify(toolResult)}\n\nRetrieved knowledge: ${context || "No relevant project documents were found."}`);
+  const context = retrieved.map((item, i) => `[D${i + 1}] ${item.filename} (chunk ${item.chunk_index + 1}, similarity ${Number(item.similarity).toFixed(3)}):
+${item.content}`).join("
+
+");
+  const answer = await generateText(`You are DataLens, an evidence-grounded data quality assistant. Answer the user clearly. Use only the supplied dataset tool output and retrieved document context for factual claims about this project. If evidence is missing, say so. Cite retrieved document passages using [D1], [D2]. Never claim a data change was performed.
+
+Question: ${question}
+
+Selected tool: ${toolChoice}
+Tool output (JSON): ${JSON.stringify(toolResult)}
+
+Retrieved knowledge: ${context || "No relevant project documents were found."}`);
   const userMessage = await prisma.chatMessage.create({ data: { sessionId: session.id, role: "user", content: question, retrievedChunkIds: [], retrievalScores: [] } });
   const assistantMessage = await prisma.chatMessage.create({ data: {
     sessionId: session.id, role: "assistant", content: answer,
