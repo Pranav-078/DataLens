@@ -74,7 +74,7 @@ export async function* generateTextStream(prompt: string): AsyncGenerator<string
   }
 
   const response = await fetch(
-    \`\${API_ROOT}/models/\${CHAT_MODEL}:streamGenerateContent?alt=sse\`,
+    API_ROOT + "/models/" + CHAT_MODEL + ":streamGenerateContent?alt=sse",
     {
       method: "POST",
       headers: {
@@ -91,7 +91,7 @@ export async function* generateTextStream(prompt: string): AsyncGenerator<string
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({})) as any;
-    throw new Error(payload?.error?.message || \`Gemini stream returned HTTP \${response.status}\`);
+    throw new Error(payload?.error?.message || "Gemini stream returned HTTP " + response.status);
   }
 
   if (!response.body) throw new Error("Gemini did not return a readable response stream.");
@@ -117,7 +117,7 @@ export async function* generateTextStream(prompt: string): AsyncGenerator<string
     while (true) {
       const { value, done } = await reader.read();
       if (value) buffer += decoder.decode(value, { stream: !done });
-      const lines = buffer.split(/\\r?\\n/);
+      const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() || "";
       for (const line of lines) {
         const text = extractText(line);
