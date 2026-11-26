@@ -24,6 +24,16 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
   GEMINI_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
 
+  // Retrieval tuning. All values have safe defaults for local development.
+  RAG_RERANK_ENABLED: z.preprocess(
+    value => value === undefined || value === "" ? "true" : value,
+    z.enum(["true", "false"]).transform(value => value === "true")
+  ),
+  RAG_RETRIEVAL_CANDIDATES: z.coerce.number().int().min(5).max(100).default(25),
+  RAG_TOP_K: z.coerce.number().int().min(1).max(20).default(5),
+  RAG_MIN_SIMILARITY: z.coerce.number().min(-1).max(1).default(0.2),
+  RAG_HISTORY_MESSAGES: z.coerce.number().int().min(0).max(20).default(8),
+
   AUTH_ENABLED: z.preprocess(
     value => value === undefined || value === "" ? "false" : value,
     z.enum(["true", "false"]).transform(value => value === "true")
