@@ -45,6 +45,7 @@ export function RelationshipsPage({ projectId, versionId }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState("");
+  const [focusedTable, setFocusedTable] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
@@ -73,7 +74,8 @@ export function RelationshipsPage({ projectId, versionId }) {
 
   const visible = items.filter(item => {
     const haystack = [item.parentTable,item.parentColumn,item.childTable,item.childColumn].join(" ").toLowerCase();
-    return haystack.includes(search.toLowerCase()) &&
+    const matchesTable = !focusedTable || item.parentTable === focusedTable || item.childTable === focusedTable;
+    return haystack.includes(search.toLowerCase()) && matchesTable &&
       (filter === "all" || (filter === "high" ? bandClass(item.confidenceBand) === "high" : n(item.orphanCount) > 0));
   });
 
@@ -90,12 +92,12 @@ export function RelationshipsPage({ projectId, versionId }) {
     <section className="panel rel-map-panel">
       <div className="rel-section-heading"><div><span className="eyebrow">SCHEMA OVERVIEW</span><h2>Relationship map</h2><p>Candidate parent-to-child links inferred from observed values and column characteristics.</p></div><div className="rel-map-legend"><span><i/> Parent</span><span><i/> Child</span></div></div>
       {loading && <div className="loading-state">Loading relationship model…</div>}
-      {!loading && !error && items.length > 0 && <div className="rel-map-list">{items.map(item=><div className="rel-map-item" key={item.id}><div className="rel-map-table parent"><KeyRound size={14}/><div><strong>{item.parentTable}</strong><small>{item.parentColumn} · PK candidate</small></div></div><div className="rel-map-edge"><span>{(n(item.confidence)*100).toFixed(0)}%</span><div><i/><ArrowRight size={15}/></div><small>1 → N inferred</small></div><div className="rel-map-table child"><Link2 size={14}/><div><strong>{item.childTable}</strong><small>{item.childColumn} · FK candidate</small></div></div></div>)}</div>}
+      {!loading && !error && items.length > 0 && <div className="rel-map-list">{items.map(item=><div className="rel-map-item" key={item.id}><button type="button" className={"rel-map-table parent " + (focusedTable === item.parentTable ? "focused" : "")} onClick={() => setFocusedTable(focusedTable === item.parentTable ? "" : item.parentTable)} aria-pressed={focusedTable === item.parentTable}><KeyRound size={14}/><div><strong>{item.parentTable}</strong><small>{item.parentColumn} · PK candidate</small></div></button><div className="rel-map-edge"><span>{(n(item.confidence)*100).toFixed(0)}%</span><div><i/><ArrowRight size={15}/></div><small>1 → N inferred</small></div><button type="button" className={"rel-map-table child " + (focusedTable === item.childTable ? "focused" : "")} onClick={() => setFocusedTable(focusedTable === item.childTable ? "" : item.childTable)} aria-pressed={focusedTable === item.childTable}><Link2 size={14}/><div><strong>{item.childTable}</strong><small>{item.childColumn} · FK candidate</small></div></button></div>)}</div>}
       {!loading && !error && items.length === 0 && <div className="rel-map-empty">No relationship candidates have been persisted for this version.</div>}
     </section>
     <section className="panel rel-schema-panel">
       <div className="rel-section-heading"><div><span className="eyebrow">TABLE CATALOG</span><h2>Tables and key candidates</h2><p>Primary-key labels below indicate profiler candidates, not declared database constraints.</p></div><span className="rel-count">{tables.length} tables</span></div>
-      {tables.length ? <div className="rel-table-grid">{tables.map(table=><article className="rel-table-card" key={table.id || table.tableName}><header><Table2 size={15}/><strong>{table.tableName}</strong><span>{count(table.rowCount)} rows</span></header><div className="rel-table-columns">{(table.columns || []).map(column=>{
+      {tables.length ? <div className="rel-table-grid">{tables.map(table=><article className="rel-table-card" key={table.id || table.tableName}><button type="button" className={"rel-table-header " + (focusedTable === table.tableName ? "focused" : "")} onClick={() => setFocusedTable(focusedTable === table.tableName ? "" : table.tableName)} aria-pressed={focusedTable === table.tableName}><Table2 size={15}/><strong>{table.tableName}</strong><span>{count(table.rowCount)} rows</span></button><div className="rel-table-columns">{(table.columns || []).map(column=>{
         const isParent = items.some(item => item.parentTable === table.tableName && item.parentColumn === column.columnName);
         const isChild = items.some(item => item.childTable === table.tableName && item.childColumn === column.columnName);
         return <div key={column.id || column.columnName}><span>{column.columnName}</span><small>{column.inferredType || "unknown"}</small>{(column.isPkCandidate || isParent) && <em>PK candidate</em>}{isChild && <em className="fk-candidate">FK candidate</em>}</div>;
@@ -103,7 +105,7 @@ export function RelationshipsPage({ projectId, versionId }) {
     </section>
     <section className="panel rel-results-panel">
       <div className="rel-section-heading"><div><span className="eyebrow">DETECTION RESULTS</span><h2>Candidate relationships</h2><p>Expand a result to inspect supporting evidence and orphan samples.</p></div><span className="rel-count">{visible.length} / {items.length}</span></div>
-      <div className="rel-toolbar"><input value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search table or column…"/><div className="filter-tabs"><button className={filter==="all"?"selected":""} onClick={()=>setFilter("all")}>All</button><button className={filter==="high"?"selected":""} onClick={()=>setFilter("high")}>High confidence</button><button className={filter==="orphans"?"selected":""} onClick={()=>setFilter("orphans")}>Has orphans</button></div></div>
+      <div className="rel-toolbar"><input value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search table or column…"/>{focusedTable && <button className="rel-focus-filter" onClick={() => setFocusedTable("")}>Table: {focusedTable} ×</button>}<div className="filter-tabs"><button className={filter==="all"?"selected":""} onClick={()=>setFilter("all")}>All</button><button className={filter==="high"?"selected":""} onClick={()=>setFilter("high")}>High confidence</button><button className={filter==="orphans"?"selected":""} onClick={()=>setFilter("orphans")}>Has orphans</button></div></div>
       {error && <div className="inline-alert">{error}</div>}
       {!loading && !error && visible.length===0 && <div className="rel-map-empty">No relationship results match this filter.</div>}
       <div className="rel-result-list">{visible.map(item=><RelationshipCard key={item.id} item={item} active={selected===item.id} onClick={()=>setSelected(selected===item.id?"":item.id)}/>)}</div>
