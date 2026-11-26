@@ -72,6 +72,7 @@ function passwordMatches(password: string): boolean {
   const packed = config.AUTH_ADMIN_PASSWORD_HASH;
   if (!packed) return false;
   const [saltHex, hashHex] = packed.split(":");
+  if (!saltHex || !hashHex) return false;
   try {
     const salt = Buffer.from(saltHex, "hex");
     const expected = Buffer.from(hashHex, "hex");
