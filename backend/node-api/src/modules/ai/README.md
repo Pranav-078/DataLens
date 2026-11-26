@@ -5,7 +5,7 @@
 Set `GEMINI_API_KEY` in the repository-root `.env`. The key is read only by the Node API and must never be placed in frontend environment variables or committed.
 
 - Chat and agent planning: `gemini-2.5-flash`
-- Text embeddings: `gemini-embedding-001`, 768 dimensions
+- Text embeddings: `gemini-embedding-001`, 1536 dimensions
 - Vector storage and nearest-neighbor retrieval: PostgreSQL pgvector
 
 ## API
@@ -38,4 +38,4 @@ The planner can select one read-only tool: `quality_issues`, `schema`, `relation
 - Tool execution is read-only. It does not execute generated SQL or modify datasets.
 - This is a project-scoped preview API, not an authenticated multi-tenant production endpoint. Add real authentication and authorization before exposing it publicly.
 - Gemini free-tier data-use terms may differ from paid-tier terms. Review Google's current terms before indexing confidential data.
-- The API uses pgvector's existing `document_chunks.embedding` vector column. The column must be dimension-compatible with 768-value Gemini embeddings.
+- The API uses pgvector's existing `document_chunks.embedding` vector column. The column must be dimension-compatible with 1536-value Gemini embeddings.
