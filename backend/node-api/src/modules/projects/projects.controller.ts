@@ -144,23 +144,24 @@ export async function getIssues(req: Request, res: Response) {
 export async function getVersionRelationships(req: Request, res: Response) {
   const { projectId, versionId } = req.params as { projectId: string; versionId: string };
   const relationships = await getRelationships(db, projectId, versionId);
-
+  const tables = await getTablesWithColumns(db, projectId, versionId);
   res.status(200).json({
     versionId,
+    tables: tables.map(t => ({
+      id: t.id, tableName: t.tableName, rowCount: t.rowCount, columnCount: t.columnCount,
+      columns: t.columns.map(c => ({
+        id: c.id, columnName: c.columnName, inferredType: c.inferredType,
+        isPkCandidate: c.isPkCandidate, pkConfidence: c.pkConfidence,
+        uniquenessRatio: c.statistics?.uniquenessRatio ?? null,
+      })),
+    })),
     relationships: relationships.map((r) => ({
-      id: r.id,
-      parentTable: r.parentTableName,
-      parentColumn: r.parentColumnName,
-      childTable: r.childTableName,
-      childColumn: r.childColumnName,
-      confidence: r.confidence,
-      confidenceBand: r.confidenceBand,
-      status: r.status,
-      valueOverlap: r.valueOverlap,
-      orphanCount: r.orphanCount,
-      orphanPercentage: r.orphanPercentage,
-      orphanExamples: r.orphanExamples,
-      evidence: r.evidence,
+      id: r.id, parentTable: r.parentTableName, parentColumn: r.parentColumnName,
+      childTable: r.childTableName, childColumn: r.childColumnName,
+      confidence: r.confidence, confidenceBand: r.confidenceBand, status: r.status,
+      valueOverlap: r.valueOverlap, orphanCount: r.orphanCount,
+      orphanPercentage: r.orphanPercentage, orphanExamples: r.orphanExamples, evidence: r.evidence,
+      cardinality: "one-to-many",
     })),
   });
 }
