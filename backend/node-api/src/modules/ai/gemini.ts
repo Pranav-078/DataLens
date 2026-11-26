@@ -20,10 +20,11 @@ async function geminiRequest(path: string, body: unknown): Promise<any> {
   return payload;
 }
 
-export async function embedText(text: string): Promise<number[]> {
+export async function embedText(text: string, taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY" = "RETRIEVAL_DOCUMENT"): Promise<number[]> {
   const result = await geminiRequest(`models/${EMBEDDING_MODEL}:embedContent`, {
     model: `models/${EMBEDDING_MODEL}`,
-    content: { parts: [{ text }] },\n    taskType: "RETRIEVAL_DOCUMENT",
+    content: { parts: [{ text }] },
+    taskType,
     outputDimensionality: 1536,
   });
   const values = result?.embedding?.values;
