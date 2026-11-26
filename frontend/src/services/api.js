@@ -37,3 +37,8 @@ export const uploadKnowledgeDocument = (projectId, file) => {
 };
 export const sendAiMessage = (projectId, payload) =>
   api.post("/projects/" + projectId + "/ai/chat", payload, { timeout: 180000 });
+
+export const listAiSessions = projectId =>
+  api.get("/projects/" + projectId + "/ai/sessions");
+export const getAiSession = (projectId, sessionId) =>
+  api.get("/projects/" + projectId + "/ai/sessions/" + sessionId);
