@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../../db/prisma.js";
-import { embedText, generateText } from "./gemini.js";
+import { embedText, extractPdfText, generateText } from "./gemini.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 export const documentUploadMiddleware = upload.single("file");
@@ -34,7 +34,7 @@ export async function uploadKnowledgeDocument(req: Request, res: Response) {
   const file = req.file;
   const projectId = typeof req.body?.projectId === "string" ? req.body.projectId : "";
   if (!file || !projectId) {
-    res.status(400).json({ error: { code: "INVALID_DOCUMENT_UPLOAD", message: "Provide projectId and a .txt or .md file." } });
+    res.status(400).json({ error: { code: "INVALID_DOCUMENT_UPLOAD", message: "Provide projectId and a .pdf, .txt, or .md file." } });
     return;
   }
   if (!file.originalname.toLowerCase().endsWith(".txt") && !file.originalname.toLowerCase().endsWith(".md")) {
@@ -46,7 +46,7 @@ export async function uploadKnowledgeDocument(req: Request, res: Response) {
     res.status(404).json({ error: { code: "PROJECT_NOT_FOUND", message: "Project was not found." } });
     return;
   }
-  const content = file.buffer.toString("utf8");
+  const isPdf = file.originalname.toLowerCase().endsWith(".pdf");\n  const content = isPdf ? await extractPdfText(file.buffer) : file.buffer.toString("utf8");
   if (!content.trim()) {
     res.status(400).json({ error: { code: "EMPTY_DOCUMENT", message: "The document contains no text." } });
     return;
@@ -54,7 +54,7 @@ export async function uploadKnowledgeDocument(req: Request, res: Response) {
 
   const document = await prisma.document.create({ data: {
     projectId, filename: file.originalname, filePath: "database://document-chunks",
-    mimeType: file.mimetype || "text/plain", fileSizeBytes: BigInt(file.size), status: "processing",
+    mimeType: file.mimetype || (isPdf ? "application/pdf" : "text/plain"), fileSizeBytes: BigInt(file.size), status: "processing",
   } });
   try {
     const chunks = splitIntoChunks(content);
