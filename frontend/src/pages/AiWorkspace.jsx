@@ -83,6 +83,7 @@ export function AiWorkspace({ projectId, versionId }) {
   const [question, setQuestion] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [sessions, setSessions] = useState([]);
+  const [openingSessionId, setOpeningSessionId] = useState("");
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [notice, setNotice] = useState("");
@@ -98,7 +99,7 @@ export function AiWorkspace({ projectId, versionId }) {
     if (!projectId) return;
     try {
       const response = await listAiSessions(projectId);
-      setSessions(response.data.sessions || []);
+      setSessions((response.data.sessions || []).slice(0, 4));
     } catch (error) {
       setNotice(friendlyError(error));
     }
@@ -239,15 +240,21 @@ export function AiWorkspace({ projectId, versionId }) {
   };
 
   const openSession = async id => {
-    if (!id || busy) return;
+    if (!id || busy || openingSessionId) return;
     stopVoice();
     setNotice("");
+    setOpeningSessionId(id);
+    setMessages([]);
+    setSessionId(id);
     try {
       const response = await getAiSession(projectId, id);
-      setSessionId(id);
-      setMessages(response.data.messages?.length ? response.data.messages : []);
+      const savedMessages = Array.isArray(response.data.messages) ? response.data.messages : [];
+      setMessages(savedMessages);
     } catch (error) {
       setNotice(friendlyError(error));
+    } finally {
+      setOpeningSessionId("");
+      inputRef.current?.focus();
     }
   };
 
@@ -305,11 +312,17 @@ export function AiWorkspace({ projectId, versionId }) {
         </div>
 
         <div className="ai-session-list">
-          <strong>RECENT</strong>
-          {sessions.map(session => <button key={session.id} className={sessionId === session.id ? "active" : ""} onClick={() => openSession(session.id)} disabled={busy}>
-            <MessageSquare size={14}/><span>{session.title || "New conversation"}</span>
+          <div className="ai-recent-heading"><strong>RECENT CHATS</strong><span>{sessions.length} / 4</span></div>
+          {sessions.map(session => <button key={session.id} className={sessionId === session.id ? "active" : ""} onClick={() => openSession(session.id)} disabled={busy || Boolean(openingSessionId)}>
+            <MessageSquare size={14}/>
+            <span className="ai-session-copy">
+              <strong>{session.title || "New conversation"}</strong>
+              <small>{session.preview ? (session.previewRole === "assistant" ? "DataLens: " : "You: ") + session.preview : "No saved reply yet"}</small>
+            </span>
+            {openingSessionId === session.id ? <LoaderCircle className="spin" size={13}/> : <ArrowUpRight size={13}/>}
           </button>)}
-          {sessions.length === 0 && <small>Your conversations will appear here.</small>}
+          {sessions.length === 0 && <small>Your four most recent chats will appear here after the first answer is saved.</small>}
+          {sessions.length > 0 && <p className="ai-recent-hint">Select a chat to reopen its full saved questions and answers.</p>}
         </div>
 
         <div className="ai-knowledge-card">
@@ -334,7 +347,7 @@ export function AiWorkspace({ projectId, versionId }) {
         </div>
 
         <div className={"chat-messages " + (isEmpty ? "is-empty" : "")} ref={messageListRef}>
-          {isEmpty ? <div className="ai-welcome">
+          {openingSessionId ? <div className="ai-history-loading"><LoaderCircle className="spin" size={17}/> Loading saved conversation…</div> : isEmpty ? <div className="ai-welcome">
             <div className="ai-welcome-icon"><WandSparkles size={25}/></div>
             <h2>What would you like to understand?</h2>
             <p>Ask a question in plain language. I’ll use your uploaded dataset and documents to help investigate it.</p>
