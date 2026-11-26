@@ -183,6 +183,11 @@ export async function postAuthRegister(req: Request, res: Response): Promise<voi
     return;
   }
 
+  if (!config.AUTH_ALLOW_REGISTRATION) {
+    authError(res, 403, "REGISTRATION_DISABLED", "New account registration is currently disabled.");
+    return;
+  }
+
   const parsed = registrationSchema.safeParse(req.body);
   if (!parsed.success) {
     authError(res, 400, "INVALID_REGISTRATION", parsed.error.issues[0]?.message || "Enter your name, a valid email and a password with at least 8 characters.");
