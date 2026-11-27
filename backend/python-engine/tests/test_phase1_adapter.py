@@ -46,6 +46,11 @@ class TestDeriveRowUid:
         second = derive_row_uid("orders", frame, 0)
         assert first == second == "orders:1"
 
+    def test_preserves_original_source_row_index_for_sampled_frames(self):
+        source = pd.DataFrame({"email": [f"user{i}@x.com" for i in range(20)]})
+        sampled = source.loc[[2, 6, 10, 14]]
+        assert derive_row_uid("customers", sampled, 10) == "customers:11"
+
 
 class TestAdaptIssue:
     def test_maps_dimension_and_severity_explicitly(self):
@@ -204,3 +209,36 @@ class TestAggregateProfileResult:
         assert len(aggregated) == 1
         assert aggregated[0]["affectedRows"] == 5
         assert aggregated[0]["examples"] == []
+
+    def test_fast_preview_estimates_counts_from_sample_but_preserves_source_rows(self):
+        source = pd.DataFrame({"phone": ["ok"] * 20})
+        sampled = source.loc[[2, 6, 10, 14]]
+        result = ProfileResult(
+            version="test",
+            tables=[DatasetProfile("customers", 4, 1, ["phone"], [])],
+            issues=[
+                make_issue(
+                    issue_type="empty_string",
+                    row_reference={"row_indices": [2, 10]},
+                ),
+            ],
+        )
+
+        aggregated, finding_count = aggregate_profile_result(
+            result,
+            {"customers": sampled},
+            source_row_counts={"customers": len(source)},
+            estimated=True,
+        )
+
+        assert finding_count == 2
+        assert len(aggregated) == 1
+        issue = aggregated[0]
+        assert issue["estimated"] is True
+        assert issue["affectedRows"] == 10
+        assert issue["totalRows"] == 20
+        assert issue["affectedPercentage"] == 50.0
+        assert issue["examples"] == ["customers:3", "customers:11"]
+        assert issue["evidence"]["analysisMode"] == "fast"
+        assert issue["evidence"]["profiledRows"] == 4
+        assert issue["evidence"]["sourceRows"] == 20
