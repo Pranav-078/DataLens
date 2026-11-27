@@ -98,26 +98,71 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: backend/python-engine/pyproject.toml
-      - name: Install profiler and test dependencies
-        run: python -m pip install -e ".[dev]"
+      - name: Resolve and pin Python runtime and dev dependencies
+        run: |
+          python -m pip install .
+          python -m pip freeze --exclude-editable | grep -v '^datasage-profiler==' > requirements.lock
+          python -m pip install -e ".[dev]"
+          python -m pip freeze --exclude-editable | grep -v '^datasage-profiler==' > requirements-dev.lock
       - name: Audit resolved third-party Python dependencies
         run: |
           python -m pip install pip-audit
-          python -m pip list --format=freeze --exclude-editable > /tmp/datalens-audit-requirements.txt
-          pip-audit --strict --no-deps -r /tmp/datalens-audit-requirements.txt
+          pip-audit --strict --no-deps -r requirements-dev.lock
       - name: Run profiler tests
         run: python -m pytest -q
+      - name: Upload tested Python dependency locks
+        uses: actions/upload-artifact@v6
+        with:
+          name: python-dependency-locks
+          path: |
+            backend/python-engine/requirements.lock
+            backend/python-engine/requirements-dev.lock
+          if-no-files-found: error
 
+
+  python-lockfile-refresh:
+    name: Commit verified Python dependency locks
+    needs: [python-profiler]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the release source
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - name: Download tested Python dependency locks
+        uses: actions/download-artifact@v7
+        with:
+          name: python-dependency-locks
+          path: backend/python-engine/
+      - name: Commit lock files after successful verification
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/python-engine/requirements.lock backend/python-engine/requirements-dev.lock
+          if git diff --cached --quiet; then
+            echo "Python lock files already match the tested dependency resolution."
+          else
+            git commit -m "chore: lock audited Python dependencies"
+            git push origin "HEAD:${{ github.ref_name }}"
+          fi
 
   production-images:
     name: Production Compose validation and image builds
-    needs: [backend, frontend, python-profiler]
+    needs: [backend, frontend, python-profiler, python-lockfile-refresh]
     runs-on: ubuntu-latest
     steps:
       - name: Check out the exact release source
         uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.event_name == 'push' && github.ref_name || github.sha }}
+      - name: Download tested Python runtime lock for container build
+        uses: actions/download-artifact@v7
+        with:
+          name: python-dependency-locks
+          path: backend/python-engine/
       - name: Validate production Compose configuration
         run: docker compose --env-file .env.production.example -f docker-compose.production.yml config --quiet
       - name: Check production backup script syntax
