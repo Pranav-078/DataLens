@@ -296,7 +296,7 @@ export async function callProfilerStub(tableCount: number): Promise<ProfileStubR
 export async function profileTables(
   tables: { tableName: string; csvContent: string }[],
   profileMode: "fast" | "full" = "full",
-  sampleSizePerTable = 20_000
+  sampleSizePerTable = 5_000
 ): Promise<ProfileTablesResponse> {
   return postToProfiler(
     "/internal/profile/tables",
