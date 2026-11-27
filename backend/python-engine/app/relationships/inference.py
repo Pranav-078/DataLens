@@ -59,6 +59,7 @@ Stage 5 — disambiguation: if the same child column clears the bar against
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import AbstractSet
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any, Optional
@@ -220,7 +221,7 @@ def _count_non_missing_values(series: pd.Series) -> Counter[str]:
 
 
 def _compute_containment_cached(
-    parent_values: Counter[str],
+    parent_values: AbstractSet[str] | Counter[str],
     child_counts: Counter[str],
 ) -> _ContainmentResult:
     """Compute exact containment from cached distinct values and counts.
@@ -278,7 +279,13 @@ def infer_relationships(
     skipped, so one malformed column can never take down the whole
     inference pass (or, one level up, the whole API request).
     """
+    inference_started = perf_counter()
     profiles_by_table = _column_profiles_by_table(table_profiles)
+    _LOGGER.info(
+        "relationship inference started tables=%d columns=%d",
+        len(profiles_by_table),
+        sum(len(columns) for columns in profiles_by_table.values()),
+    )
 
     parent_candidates: list[tuple[str, str, ColumnProfile]] = []
     for table_name, columns in profiles_by_table.items():
@@ -301,19 +308,26 @@ def infer_relationships(
 
     # Counter membership is O(1), so reuse it directly as the parent-value
     # set instead of allocating a second frozenset containing the same keys.
+    cache_started = perf_counter()
     parent_value_counts: dict[tuple[str, str], Counter[str]] = {}
     for parent_table, parent_column, _ in parent_candidates:
         key = (parent_table, parent_column)
         parent_value_counts[key] = counts_for(parent_table, parent_column)
+    _LOGGER.info(
+        "relationship parent cache ready parents=%d cached_columns=%d elapsed_ms=%.1f",
+        len(parent_candidates),
+        len(value_counts_cache),
+        (perf_counter() - cache_started) * 1000,
+    )
 
     # Best candidate seen so far per (child_table, child_column), so Stage 5's
     # disambiguation can run in a single pass without a second full loop.
     best_by_child: dict[tuple[str, str], RelationshipCandidate] = {}
     runners_up: dict[tuple[str, str], list[dict[str, Any]]] = {}
     evaluated_pairs = 0
-    inference_started = perf_counter()
-
     for parent_table, parent_column, parent_profile in parent_candidates:
+        parent_pair_started = perf_counter()
+        pairs_before = evaluated_pairs
         for child_table, child_columns in profiles_by_table.items():
             if child_table == parent_table:
                 continue
@@ -347,6 +361,13 @@ def infer_relationships(
                     best_by_child[key] = candidate
                 else:
                     runners_up.setdefault(key, []).append(_runner_up_summary(candidate))
+        _LOGGER.info(
+            "relationship parent evaluated table=%s column=%s pairs=%d elapsed_ms=%.1f",
+            parent_table,
+            parent_column,
+            evaluated_pairs - pairs_before,
+            (perf_counter() - parent_pair_started) * 1000,
+        )
 
     results: list[RelationshipCandidate] = []
     for key, candidate in best_by_child.items():
