@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - chore/reorganize-project-structure
+      - fix/compact-profiler-results
   pull_request:
     branches:
       - main
+      - fix/track-registration-rate-limit
 
 permissions:
   contents: read
@@ -53,3 +55,24 @@ jobs:
         run: npm install
       - name: Build frontend
         run: npm run build
+
+
+  python-profiler:
+    name: Python profiler tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/python-engine
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/python-engine/pyproject.toml
+      - name: Install profiler and test dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Run profiler tests
+        run: python -m pytest -q
