@@ -21,6 +21,7 @@ app.include_router(health.router)
 # profile_stub.py already declares the full "/internal/profile" path, so no
 # prefix is added here — adding one would double it up.
 app.include_router(profile_stub.router, tags=["internal"])
-# The real profiling endpoint (Phase 1 profiler + adapter). Additive: Node
-# is not yet wired to this route — see profile_tables.py's module docstring.
+# The real profiling endpoints are called by the Node upload and
+# relationship-rebuild services; Python remains stateless and returns results
+# for Node to persist in PostgreSQL.
 app.include_router(profile_tables.router, tags=["internal"])
