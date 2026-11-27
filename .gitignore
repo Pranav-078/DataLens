@@ -40,3 +40,6 @@ frontend/dist/
 .env.production
 .env.production.local
 .env.*.local
+
+# Production backup archives can contain confidential dataset contents
+/backups/
