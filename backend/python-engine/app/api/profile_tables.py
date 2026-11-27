@@ -19,11 +19,11 @@ from __future__ import annotations
 
 import io
 from time import perf_counter
-from typing import Optional
+from typing import Literal, Optional
 
 import pandas as pd
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app import _vendor_path  # noqa: F401  (must run before importing datasage_profiler)
 from datasage_profiler.engine import DataProfiler
@@ -42,6 +42,8 @@ class TablePayload(BaseModel):
 
 class ProfileTablesRequest(BaseModel):
     tables: list[TablePayload]
+    profileMode: Literal["fast", "full"] = "full"
+    sampleSizePerTable: int = Field(default=20_000, ge=1_000, le=50_000)
 
 
 class FindingPayload(BaseModel):
@@ -68,6 +70,7 @@ class AggregatedIssuePayload(BaseModel):
     examples: list[str]
     evidence: dict
     fingerprint: str
+    estimated: bool = False
 
 
 class ColumnProfileSummary(BaseModel):
@@ -86,6 +89,7 @@ class ColumnProfileSummary(BaseModel):
 class TableProfileSummary(BaseModel):
     tableName: str
     rowCount: int
+    profiledRowCount: int
     columnCount: int
     columns: list[ColumnProfileSummary]
 
@@ -114,6 +118,8 @@ class RelationshipPayload(BaseModel):
 
 class ProfileTablesResponse(BaseModel):
     status: str
+    profileMode: Literal["fast", "full"]
+    sampleSizePerTable: Optional[int]
     tableCount: int
     findingCount: int
     tables: list[TableProfileSummary]
@@ -142,30 +148,63 @@ def post_profile_tables(payload: ProfileTablesRequest) -> ProfileTablesResponse:
     # keeping CPU-heavy pandas/profiling work off the ASGI event loop.
     started = perf_counter()
     input_chars = sum(len(t.csvContent) for t in payload.tables)
-    tables: dict[str, pd.DataFrame] = {
+    loaded_tables: dict[str, pd.DataFrame] = {
         t.tableName: _load_csv_string(t.csvContent) for t in payload.tables
     }
+    source_row_counts = {name: len(frame) for name, frame in loaded_tables.items()}
     loaded_at = perf_counter()
     logger.info(
-        "profile input loaded tables=%d rows=%d chars=%d elapsed_ms=%.1f",
-        len(tables),
-        sum(len(frame) for frame in tables.values()),
+        "profile input loaded tables=%d rows=%d chars=%d mode=%s elapsed_ms=%.1f",
+        len(loaded_tables),
+        sum(source_row_counts.values()),
         input_chars,
+        payload.profileMode,
         (loaded_at - started) * 1000,
+    )
+
+    if payload.profileMode == "fast":
+        # Deterministic sampling retains original DataFrame index labels.
+        # The detectors use those labels as source CSV row positions, so do
+        # not reset_index() after sampling.
+        tables: dict[str, pd.DataFrame] = {
+            name: (
+                frame.sample(n=payload.sampleSizePerTable, random_state=42).sort_index()
+                if len(frame) > payload.sampleSizePerTable
+                else frame
+            )
+            for name, frame in loaded_tables.items()
+        }
+        del loaded_tables
+        estimated = True
+    else:
+        tables = loaded_tables
+        estimated = False
+
+    profiled_row_counts = {name: len(frame) for name, frame in tables.items()}
+    sampled_at = perf_counter()
+    logger.info(
+        "profile analysis rows=%d/%d sample_limit=%s elapsed_ms=%.1f",
+        sum(profiled_row_counts.values()),
+        sum(source_row_counts.values()),
+        payload.sampleSizePerTable if estimated else "full",
+        (sampled_at - loaded_at) * 1000,
     )
 
     result = DataProfiler().profile(tables)
     profiled_at = perf_counter()
-    aggregated_issues, finding_count = aggregate_profile_result(result, tables)
+    aggregated_issues, finding_count = aggregate_profile_result(
+        result,
+        tables,
+        source_row_counts=source_row_counts,
+        estimated=estimated,
+    )
     adapted_at = perf_counter()
-    # Reuses the SAME `tables` dict and the SAME already-computed Phase 1
-    # column profiles (result.tables) — no second CSV parse, no second
-    # profiling pass. See app/relationships/inference.py for the algorithm;
-    # nothing about it is duplicated here.
+    # Reuses the same profile tables and already-computed column profiles.
     relationships = infer_relationships(tables, result.tables)
     related_at = perf_counter()
     logger.info(
-        "profile computation complete tables=%d findings=%d relationships=%d load_ms=%.1f profile_ms=%.1f adapter_ms=%.1f relationships_ms=%.1f total_ms=%.1f",
+        "profile computation complete mode=%s tables=%d findings=%d relationships=%d load_ms=%.1f profile_ms=%.1f adapter_ms=%.1f relationships_ms=%.1f total_ms=%.1f",
+        payload.profileMode,
         len(tables),
         finding_count,
         len(relationships),
@@ -179,7 +218,8 @@ def post_profile_tables(payload: ProfileTablesRequest) -> ProfileTablesResponse:
     table_summaries = [
         TableProfileSummary(
             tableName=dp.table,
-            rowCount=dp.row_count,
+            rowCount=source_row_counts[dp.table],
+            profiledRowCount=dp.row_count,
             columnCount=dp.column_count,
             columns=[
                 ColumnProfileSummary(
@@ -200,6 +240,8 @@ def post_profile_tables(payload: ProfileTablesRequest) -> ProfileTablesResponse:
 
     return ProfileTablesResponse(
         status="profiled",
+        profileMode=payload.profileMode,
+        sampleSizePerTable=payload.sampleSizePerTable if estimated else None,
         tableCount=len(tables),
         findingCount=finding_count,
         tables=table_summaries,
@@ -219,10 +261,22 @@ def post_profile_tables(payload: ProfileTablesRequest) -> ProfileTablesResponse:
                 confidence_band=r.confidence_band,
                 status="inferred",
                 value_overlap=r.value_overlap,
-                orphan_count=r.orphan_count,
+                orphan_count=(
+                    min(
+                        source_row_counts[r.child_table],
+                        int((r.orphan_percentage / 100) * source_row_counts[r.child_table] + 0.5),
+                    )
+                    if estimated else r.orphan_count
+                ),
                 orphan_percentage=r.orphan_percentage,
                 orphan_examples=r.orphan_examples,
-                evidence=r.evidence,
+                evidence={
+                    **r.evidence,
+                    "analysisMode": payload.profileMode,
+                    "estimated": estimated,
+                    "profiledChildRows": profiled_row_counts[r.child_table],
+                    "sourceChildRows": source_row_counts[r.child_table],
+                },
             )
             for r in relationships
         ],
