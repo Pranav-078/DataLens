@@ -89,7 +89,17 @@ Expected readiness response is HTTP 200 with both `database` and `pgvector` chec
 
 ## 5. Operations and backups
 
-Back up PostgreSQL and the `storage_data` volume on a schedule. A database backup without uploaded CSV files is not a complete DataLens backup. Encrypt backups, restrict access, test restores, and set retention according to the data classification and user agreement.
+Back up PostgreSQL and the `storage_data` volume on a schedule. A database backup without uploaded CSV files is not a complete DataLens backup.
+
+From the repository root on the production host, run:
+
+```bash
+BACKUP_ROOT=/var/backups/datalens ./scripts/backup-production.sh
+```
+
+The script validates the production Compose configuration, stops the frontend and API briefly to prevent concurrent writes, creates a PostgreSQL custom-format dump and a tar archive of the named uploaded-file volume, records the release commit and SHA-256 checksums, then restarts only the services that were running before the backup. If the script exits non-zero, treat that backup as incomplete and inspect service state before trying again. The sample assumes the Compose project volume is `datalens_storage_data`; set `STORAGE_VOLUME` if the production project name or volume name differs.
+
+The generated directory contains confidential dataset contents and a database dump. Restrict permissions, encrypt it before off-host transfer, store it outside the production host, and apply an access-controlled retention policy. Test restoration in an isolated recovery environment on a regular schedule; do not test restore over the live production volumes.
 
 Monitor API/profiler logs, database disk and memory, storage growth, CPU, health-check failures, upload/profiler duration, and Gemini errors/costs. Alert on repeated 5xx responses, repeated failed readiness checks, database space thresholds and failed backups.
 
