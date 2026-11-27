@@ -128,3 +128,8 @@ npm run build
 ```
 
 See [docs/architecture.md](docs/architecture.md), [docs/authentication.md](docs/authentication.md) and [backend/node-api/src/modules/ai/README.md](backend/node-api/src/modules/ai/README.md) for architecture, account security and RAG implementation details.
+
+
+## Production deployment
+
+A hardened production-only Compose stack, reverse-proxy configuration, restricted runtime database role and deployment runbook are maintained separately from the local development stack. See [docs/production-deployment.md](docs/production-deployment.md) and [`.env.production.example`](.env.production.example). Do not expose the development Compose file to the public internet.
