@@ -8,6 +8,8 @@ import { uploadRouter } from "./modules/uploads/upload.routes.js";
 import { projectsRouter } from "./modules/projects/projects.routes.js";
 import { aiRouter } from "./modules/ai/ai.routes.js";
 import { notFoundHandler, errorHandler } from "./errors/errorHandler.js";
+import { config } from "./config.js";
+import { hardeningHeaders, requireTrustedOrigin } from "./middleware/security.js";
 
 /**
  * Builds the Express app without binding a port. Split out from server.ts
@@ -16,12 +18,15 @@ import { notFoundHandler, errorHandler } from "./errors/errorHandler.js";
  */
 export function createApp() {
   const app = express();
-
-  app.use(express.json());
+  app.disable("x-powered-by");
+  app.set("trust proxy", config.TRUST_PROXY_HOPS);
 
   // Order matters: requestId must run before anything that logs or errors.
   app.use(requestId);
   app.use(accessLog);
+  app.use(hardeningHeaders);
+  app.use(requireTrustedOrigin);
+  app.use(express.json());
 
   app.use(authRouter);
   app.use(healthRouter);
