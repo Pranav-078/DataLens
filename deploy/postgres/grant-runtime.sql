@@ -5,8 +5,8 @@
 \set ON_ERROR_STOP on
 \getenv app_user APP_DB_USER
 \getenv app_password APP_DB_PASSWORD
-\getenv migration_user POSTGRES_USER
-\getenv db_name POSTGRES_DB
+\getenv migration_user PGUSER
+\getenv db_name PGDATABASE
 
 SELECT format(
   'CREATE ROLE %I WITH LOGIN PASSWORD %L',
