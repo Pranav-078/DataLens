@@ -24,6 +24,8 @@ const envSchema = z.object({
   STORAGE_ROOT: z.string().min(1, "STORAGE_ROOT is required"),
   MAX_FILE_SIZE_BYTES: z.coerce.number().int().positive().default(52_428_800),
   MAX_FILES_PER_UPLOAD: z.coerce.number().int().positive().default(10),
+  // Aggregate multipart request size; complements the per-file and file-count limits.
+  MAX_UPLOAD_BODY_BYTES: z.coerce.number().int().positive().default(104_857_600),
 
   PROFILER_BASE_URL: z.string().url("PROFILER_BASE_URL must be a valid URL"),
   PROFILER_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
@@ -57,6 +59,9 @@ const envSchema = z.object({
   ),
   AUTH_COOKIE_SECRET: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
 }).superRefine((value, context) => {
+  if (value.MAX_UPLOAD_BODY_BYTES < value.MAX_FILE_SIZE_BYTES) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["MAX_UPLOAD_BODY_BYTES"], message: "MAX_UPLOAD_BODY_BYTES must be at least MAX_FILE_SIZE_BYTES." });
+  }
   if (value.NODE_ENV === "production" && !value.AUTH_ENABLED) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["AUTH_ENABLED"], message: "Set AUTH_ENABLED=true in production." });
   }
