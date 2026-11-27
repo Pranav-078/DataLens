@@ -13,7 +13,9 @@ looks at what Phase 1 already produced.
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import Any
+import hashlib
+import math
 
 import pandas as pd
 
@@ -133,6 +135,17 @@ def adapt_issue(issue: Issue, frame: pd.DataFrame) -> list[Finding]:
     # Preserves the original Phase 1 finding information, per Step 1's
     # requirement 5 — nothing Phase 1 computed is discarded, it's just not
     # part of the Phase 0 contract's required fields.
+    row_indices = _row_indices_from_reference(issue.row_reference)
+    row_reference_summary = {
+        "kind": (
+            "row_indices"
+            if issue.row_reference and "row_indices" in issue.row_reference
+            else "row_index"
+            if issue.row_reference and "row_index" in issue.row_reference
+            else "none"
+        ),
+        "referenced_row_count": len(row_indices),
+    }
     base_evidence: dict[str, Any] = {
         "phase1_issue_id": issue.issue_id,
         "phase1_detector": issue.detector,
@@ -141,10 +154,8 @@ def adapt_issue(issue: Issue, frame: pd.DataFrame) -> list[Finding]:
         "phase1_observed_value": issue.observed_value,
         "phase1_description": issue.description,
         "phase1_details": issue.details,
-        "phase1_row_reference": issue.row_reference,
+        "phase1_row_reference": row_reference_summary,
     }
-
-    row_indices = _row_indices_from_reference(issue.row_reference)
 
     if not row_indices:
         candidate = {
@@ -167,7 +178,10 @@ def adapt_issue(issue: Issue, frame: pd.DataFrame) -> list[Finding]:
             "row_uid": derive_row_uid(issue.table, frame, position),
             "column": issue.column,
             "severity": severity,
-            "evidence": base_evidence,
+            "evidence": {
+                **base_evidence,
+                "phase1_row_index": position,
+            },
         }
         findings.append(validate_finding(candidate))
     return findings
@@ -185,3 +199,154 @@ def adapt_profile_result(
         frame = tables[issue.table]
         findings.extend(adapt_issue(issue, frame))
     return findings
+
+
+
+def aggregate_profile_result(
+    result: ProfileResult,
+    tables: dict[str, pd.DataFrame],
+    max_examples: int = 10,
+) -> tuple[list[dict[str, Any]], int]:
+    """
+    Aggregate Phase 1 issues directly into persistence-ready quality issues.
+
+    This deliberately avoids constructing one Python Finding object per
+    affected row and avoids sending hundreds of thousands of row-level
+    objects to Node. Counts are exact for the full input data; only the
+    human-readable example row IDs are capped.
+
+    Returns:
+        (aggregated_issues, finding_count)
+
+    finding_count matches the legacy adapter's fan-out count: one Finding
+    for each referenced row, or one table-level Finding when no row is
+    explicitly referenced.
+    """
+    severity_rank = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+    groups: dict[tuple[str, str, str | None], dict[str, Any]] = {}
+    finding_count = 0
+
+    for issue in result.issues:
+        if issue.issue_type not in _DIMENSION_BY_ISSUE_TYPE:
+            raise AdapterMappingError(
+                f"No dimension mapping for Phase 1 issue_type {issue.issue_type!r} "
+                f"(detector: {issue.detector!r}). Add it to _DIMENSION_BY_ISSUE_TYPE."
+            )
+        if issue.severity not in _SEVERITY_MAP:
+            raise AdapterMappingError(
+                f"No severity mapping for Phase 1 severity {issue.severity!r} "
+                f"(issue_type: {issue.issue_type!r}). Add it to _SEVERITY_MAP."
+            )
+        if issue.table not in tables:
+            raise AdapterMappingError(
+                f"Phase 1 issue references unknown table {issue.table!r}."
+            )
+
+        frame = tables[issue.table]
+        row_indices = _row_indices_from_reference(issue.row_reference)
+        # The legacy fan-out created one marker Finding for table-level
+        # issues with no explicit row references.
+        finding_count += len(row_indices) if row_indices else 1
+
+        key = (issue.issue_type, issue.table, issue.column)
+        group = groups.get(key)
+        mapped_severity = _SEVERITY_MAP[issue.severity]
+
+        # This is the exact evidence shape the old Node aggregation received
+        # from the first row-level Finding, except the full index array is
+        # represented by a compact summary.
+        first_position = row_indices[0] if row_indices else None
+        row_reference_summary = {
+            "kind": (
+                "row_indices"
+                if issue.row_reference and "row_indices" in issue.row_reference
+                else "row_index"
+                if issue.row_reference and "row_index" in issue.row_reference
+                else "none"
+            ),
+            "referenced_row_count": len(row_indices),
+        }
+        sample_evidence: dict[str, Any] = {
+            "phase1_issue_id": issue.issue_id,
+            "phase1_detector": issue.detector,
+            "phase1_severity": issue.severity,
+            "phase1_confidence": issue.confidence,
+            "phase1_observed_value": issue.observed_value,
+            "phase1_description": issue.description,
+            "phase1_details": issue.details,
+            "phase1_row_reference": row_reference_summary,
+        }
+        if first_position is not None:
+            sample_evidence["phase1_row_index"] = first_position
+
+        if group is None:
+            group = {
+                "tableName": issue.table,
+                "columnName": issue.column,
+                "issueType": issue.issue_type,
+                "dimension": _DIMENSION_BY_ISSUE_TYPE[issue.issue_type],
+                "severity": mapped_severity,
+                "totalRows": len(frame),
+                "rowUids": set(),
+                "examples": [],
+                "exampleSet": set(),
+                "findingCountInGroup": 0,
+                "sampleEvidence": sample_evidence,
+            }
+            groups[key] = group
+
+        group["findingCountInGroup"] += len(row_indices) if row_indices else 1
+        if severity_rank[mapped_severity] > severity_rank[group["severity"]]:
+            group["severity"] = mapped_severity
+
+        for position in row_indices:
+            row_uid = derive_row_uid(issue.table, frame, position)
+            if row_uid not in group["rowUids"]:
+                group["rowUids"].add(row_uid)
+                if len(group["examples"]) < max_examples and row_uid not in group["exampleSet"]:
+                    group["examples"].append(row_uid)
+                    group["exampleSet"].add(row_uid)
+
+    aggregated: list[dict[str, Any]] = []
+    for (issue_type, table_name, column_name), group in groups.items():
+        unique_row_count = len(group["rowUids"])
+        all_marker_level = unique_row_count == 0 and group["findingCountInGroup"] > 0
+        total_rows = group["totalRows"]
+        affected_rows = total_rows if all_marker_level else unique_row_count
+
+        if total_rows > 0:
+            percentage = (affected_rows / total_rows) * 100
+            affected_percentage = math.floor(percentage * 1000 + 0.5) / 1000
+        else:
+            affected_percentage = 0
+
+        humanized_type = issue_type.replace("_", " ")
+        title = f"{humanized_type} in {table_name}"
+        if column_name:
+            title += f".{column_name}"
+
+        fingerprint_input = f"{issue_type}|{table_name}|{column_name or ''}"
+        fingerprint = hashlib.sha256(fingerprint_input.encode("utf-8")).hexdigest()
+
+        aggregated.append({
+            "tableName": table_name,
+            "columnName": column_name,
+            "issueType": issue_type,
+            "dimension": group["dimension"],
+            "severity": group["severity"],
+            "title": title,
+            "description": (
+                f"{affected_rows} of {total_rows} row(s) affected by {humanized_type}."
+            ),
+            "affectedRows": affected_rows,
+            "totalRows": total_rows,
+            "affectedPercentage": affected_percentage,
+            "examples": [] if all_marker_level else group["examples"],
+            "evidence": {
+                "sampleFindingEvidence": group["sampleEvidence"],
+                "findingCountInGroup": group["findingCountInGroup"],
+            },
+            "fingerprint": fingerprint,
+        })
+
+    return aggregated, finding_count
