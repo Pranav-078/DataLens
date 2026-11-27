@@ -62,7 +62,7 @@ export async function processUpload(
   const project = await findOrCreateProject(db, input.projectId, input.ownerUserId);
   const profileMode = input.profileMode ?? "full";
   const versionLabel = profileMode === "fast"
-    ? "FAST PREVIEW · SAMPLED (up to 20,000 rows/table)"
+    ? "FAST PREVIEW · SAMPLED (up to 5,000 rows/table)"
     : "FULL ANALYSIS";
   const { versionId, jobId, versionNumber } = await createVersionAndJob(db, {
     projectId: project.id,
