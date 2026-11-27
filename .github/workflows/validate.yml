@@ -6,11 +6,13 @@ on:
       - chore/reorganize-project-structure
       - fix/compact-profiler-results
       - fix/relationship-intelligence
+      - release/production-readiness
   pull_request:
     branches:
       - main
       - fix/track-registration-rate-limit
       - fix/compact-profiler-results
+      - release/production-readiness
 
 permissions:
   contents: read
@@ -78,3 +80,15 @@ jobs:
         run: python -m pip install -e ".[dev]"
       - name: Run profiler tests
         run: python -m pytest -q
+
+
+  production-images:
+    name: Production Compose validation and image builds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Validate production Compose configuration
+        run: docker compose --env-file .env.production.example -f docker-compose.production.yml config --quiet
+      - name: Build production API, migration, profiler and frontend images
+        run: docker compose --env-file .env.production.example -f docker-compose.production.yml build api migrate profiler frontend
