@@ -125,10 +125,20 @@ def parse_number(value: Any) -> Optional[float]:
     return number if math.isfinite(number) else None
 
 
-def parse_date(value: Any) -> Optional[datetime]:
-    text = clean_text(value).strip()
-    if not _looks_like_date_text(text):
-        return None
+@lru_cache(maxsize=131072)
+def _parse_date_text(text: str) -> Optional[datetime]:
+    """Parse a date string once and reuse the result across profiler stages.
+
+    ISO date/timestamp strings are common in CSV exports. fromisoformat is
+    substantially cheaper than trying every strptime format. A trailing Z
+    is deliberately left to the existing format loop to preserve its
+    existing naive-datetime behavior.
+    """
+    if not text.endswith("Z"):
+        try:
+            return datetime.fromisoformat(text)
+        except ValueError:
+            pass
     for date_format in _DATE_FORMATS:
         try:
             return datetime.strptime(text, date_format)
@@ -138,6 +148,13 @@ def parse_date(value: Any) -> Optional[datetime]:
     if pd.isna(parsed):
         return None
     return parsed.to_pydatetime() if hasattr(parsed, "to_pydatetime") else parsed
+
+
+def parse_date(value: Any) -> Optional[datetime]:
+    text = clean_text(value).strip()
+    if not _looks_like_date_text(text):
+        return None
+    return _parse_date_text(text)
 
 
 def date_format(value: Any) -> Optional[str]:
@@ -160,20 +177,23 @@ def infer_type(
     values = non_missing_values(series, missing_tokens)
     if not values:
         return "unknown"
-    numeric_count = sum(parse_number(value) is not None for value in values)
+    parsed_numbers = [parse_number(value) for value in values]
+    numeric_values = [number for number in parsed_numbers if number is not None]
+    numeric_count = len(numeric_values)
     date_count = sum(parse_date(value) is not None for value in values)
     boolean_count = sum(value.casefold() in {"true", "false", "yes", "no", "0", "1"} for value in values)
     total = len(values)
+    is_integer = all(number.is_integer() for number in numeric_values)
     if date_name_hint and date_count / total >= 0.5:
         return "date"
     if numeric_name_hint and numeric_count / total >= 0.5:
-        return "integer" if all(parse_number(value).is_integer() for value in values if parse_number(value) is not None) else "float"
+        return "integer" if is_integer else "float"
     if date_count == total and total >= 2:
         return "date"
     if numeric_count == total:
-        return "integer" if all(parse_number(value).is_integer() for value in values) else "float"
+        return "integer" if is_integer else "float"
     if numeric_count / total >= 0.8 and numeric_count >= 3:
-        return "integer" if all(parse_number(value).is_integer() for value in values if parse_number(value) is not None) else "float"
+        return "integer" if is_integer else "float"
     if boolean_count == total:
         return "boolean"
     return "string"
