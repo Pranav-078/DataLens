@@ -59,7 +59,7 @@ export interface TableToCreate {
  */
 export async function createVersionAndJob(
   db: ProfilingDb,
-  params: { projectId: string }
+  params: { projectId: string; label?: string | null }
 ): Promise<{ versionId: string; jobId: string; versionNumber: number }> {
   return db.$transaction(async (tx) => {
     const latest = await tx.datasetVersion.findFirst({
@@ -69,7 +69,12 @@ export async function createVersionAndJob(
     const versionNumber = (latest?.versionNumber ?? 0) + 1;
 
     const version = await tx.datasetVersion.create({
-      data: { projectId: params.projectId, versionNumber, status: "profiling" },
+      data: {
+        projectId: params.projectId,
+        versionNumber,
+        status: "profiling",
+        ...(params.label ? { label: params.label } : {}),
+      },
     });
 
     const job = await tx.job.create({
