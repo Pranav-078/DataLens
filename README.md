@@ -14,7 +14,6 @@ DataLens/
 ├── fixtures/                 # Sample CSV versions and ground-truth fixtures
 ├── docs/                     # Architecture and technical documentation
 ├── evaluation/               # Detector evaluation harness and tests
-├── archive/                  # Historical phase snapshots; not used at runtime
 ├── docker-compose.yml
 ├── Makefile
 └── .env.example
@@ -89,7 +88,7 @@ make test
 make typecheck
 ``
 
-See `docs/architecture.md` for the system design. Historical phase snapshots are kept under `archive/` for reference and are not part of the active runtime.
+See `docs/architecture.md` for the system design.
 
 
 ## Authentication
