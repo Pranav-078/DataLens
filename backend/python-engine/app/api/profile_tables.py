@@ -28,7 +28,7 @@ from pydantic import BaseModel
 from app import _vendor_path  # noqa: F401  (must run before importing datasage_profiler)
 from datasage_profiler.engine import DataProfiler
 
-from app.adapters.phase1_adapter import adapt_profile_result
+from app.adapters.phase1_adapter import aggregate_profile_result
 from app.relationships.inference import infer_relationships
 from app.logging_config import logger
 
@@ -52,6 +52,22 @@ class FindingPayload(BaseModel):
     column: Optional[str]
     severity: str
     evidence: dict
+
+
+class AggregatedIssuePayload(BaseModel):
+    tableName: str
+    columnName: Optional[str]
+    issueType: str
+    dimension: str
+    severity: str
+    title: str
+    description: str
+    affectedRows: int
+    totalRows: int
+    affectedPercentage: float
+    examples: list[str]
+    evidence: dict
+    fingerprint: str
 
 
 class ColumnProfileSummary(BaseModel):
@@ -102,6 +118,7 @@ class ProfileTablesResponse(BaseModel):
     findingCount: int
     tables: list[TableProfileSummary]
     findings: list[FindingPayload]
+    aggregatedIssues: list[AggregatedIssuePayload]
     relationships: list[RelationshipPayload]
 
 
@@ -139,7 +156,7 @@ def post_profile_tables(payload: ProfileTablesRequest) -> ProfileTablesResponse:
 
     result = DataProfiler().profile(tables)
     profiled_at = perf_counter()
-    findings = adapt_profile_result(result, tables)
+    aggregated_issues, finding_count = aggregate_profile_result(result, tables)
     adapted_at = perf_counter()
     # Reuses the SAME `tables` dict and the SAME already-computed Phase 1
     # column profiles (result.tables) — no second CSV parse, no second
@@ -150,7 +167,7 @@ def post_profile_tables(payload: ProfileTablesRequest) -> ProfileTablesResponse:
     logger.info(
         "profile computation complete tables=%d findings=%d relationships=%d load_ms=%.1f profile_ms=%.1f adapter_ms=%.1f relationships_ms=%.1f total_ms=%.1f",
         len(tables),
-        len(findings),
+        finding_count,
         len(relationships),
         (loaded_at - started) * 1000,
         (profiled_at - loaded_at) * 1000,
@@ -184,19 +201,13 @@ def post_profile_tables(payload: ProfileTablesRequest) -> ProfileTablesResponse:
     return ProfileTablesResponse(
         status="profiled",
         tableCount=len(tables),
-        findingCount=len(findings),
+        findingCount=finding_count,
         tables=table_summaries,
-        findings=[
-            FindingPayload(
-                issue_type=f.issue_type,
-                dimension=f.dimension,
-                table=f.table,
-                row_uid=f.row_uid,
-                column=f.column,
-                severity=f.severity,
-                evidence=f.evidence,
-            )
-            for f in findings
+        # Keep the legacy field as an empty array for backward-compatible
+        # response shape; compact issue summaries carry the exact counts.
+        findings=[],
+        aggregatedIssues=[
+            AggregatedIssuePayload(**issue) for issue in aggregated_issues
         ],
         relationships=[
             RelationshipPayload(
