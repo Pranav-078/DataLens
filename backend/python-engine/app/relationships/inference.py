@@ -59,10 +59,9 @@ Stage 5 — disambiguation: if the same child column clears the bar against
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import AbstractSet
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
-from typing import Any, Optional
+from typing import AbstractSet, Any, Optional
 import logging
 import re
 from time import perf_counter
