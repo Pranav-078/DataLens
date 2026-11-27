@@ -131,8 +131,8 @@ def _parse_date_text(text: str) -> Optional[datetime]:
 
     ISO date/timestamp strings are common in CSV exports. fromisoformat is
     substantially cheaper than trying every strptime format. A trailing Z
-    is deliberately left to the existing format loop to preserve its
-    existing naive-datetime behavior.
+    is stripped before parsing to preserve the profiler's existing
+    naive-datetime behavior.
     """
     try:
         # Keep the profiler's previous naive-datetime behavior for a trailing
