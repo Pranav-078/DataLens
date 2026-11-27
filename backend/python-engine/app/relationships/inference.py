@@ -58,17 +58,20 @@ Stage 5 — disambiguation: if the same child column clears the bar against
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any, Optional
+import logging
 import re
+from time import perf_counter
 
 import pandas as pd
 
 from app import _vendor_path  # noqa: F401  (must run before importing datasage_profiler)
 from datasage_profiler.config import ProfilerConfig
 from datasage_profiler.models import ColumnProfile, DatasetProfile
-from datasage_profiler.utils import non_missing_values
+from datasage_profiler.utils import is_missing
 
 # ──────────────────────────────────────────────────────────────────────
 # Named thresholds — Phase 2 design constants. Deliberately NOT scattered
@@ -108,6 +111,7 @@ CONFIDENCE_BAND_MEDIUM_MIN = 0.65
 MAX_ORPHAN_EXAMPLES = 5
 
 _MISSING_TOKENS = ProfilerConfig().missing_tokens
+_LOGGER = logging.getLogger("datasage-profiler")
 
 
 @dataclass(frozen=True)
@@ -200,36 +204,47 @@ def _is_parent_candidate(profile: ColumnProfile) -> bool:
     return True
 
 
-def _compute_containment(parent_series: pd.Series, child_series: pd.Series) -> _ContainmentResult:
-    """Vectorized, set/hash-based — O(n), never a row-by-row or O(n^2)
-    comparison. Null/empty values on the child side are excluded from the
-    denominator entirely: an unset foreign key is not a "found" value and
-    is not an "orphan" either, it's simply not checkable."""
-    parent_values = set(non_missing_values(parent_series, _MISSING_TOKENS))
-    child_checked = non_missing_values(child_series, _MISSING_TOKENS)
+def _count_non_missing_values(series: pd.Series) -> Counter[str]:
+    """Count each distinct non-missing value once per column.
 
-    if len(child_checked) == 0:
+    Relationship inference evaluates one column against many candidates.
+    Counting once avoids rebuilding full Python lists and pandas Series for
+    every pair while preserving duplicate frequencies for orphan totals.
+    """
+    counts: Counter[str] = Counter()
+    for value in series.array:
+        if is_missing(value, _MISSING_TOKENS):
+            continue
+        counts[str(value) if value is not None else ""] += 1
+    return counts
+
+
+def _compute_containment(
+    parent_values: frozenset[str],
+    child_counts: Counter[str],
+) -> _ContainmentResult:
+    """Compute exact containment from cached distinct values and counts.
+
+    Runtime is proportional to the child's distinct values, not its row
+    count. Counts preserve the original row-weighted orphan percentage.
+    """
+    child_checked_count = sum(child_counts.values())
+    if child_checked_count == 0:
         return _ContainmentResult(0.0, 0, 0, 0.0, [])
 
-    child_checked_series = pd.Series(child_checked)
-    is_found = child_checked_series.isin(parent_values)
-    orphan_values = child_checked_series[~is_found]
-
-    orphan_count = int(len(orphan_values))
-    containment = 1.0 - (orphan_count / len(child_checked))
-    orphan_percentage = round(100.0 * orphan_count / len(child_checked), 3)
-    # Sorted (not insertion-order) so the examples list is itself
-    # deterministic across runs regardless of pandas' internal ordering.
-    orphan_examples = sorted(set(orphan_values.tolist()))[:MAX_ORPHAN_EXAMPLES]
+    orphan_values = [value for value in child_counts if value not in parent_values]
+    orphan_count = sum(child_counts[value] for value in orphan_values)
+    containment = 1.0 - (orphan_count / child_checked_count)
+    orphan_percentage = round(100.0 * orphan_count / child_checked_count, 3)
+    orphan_examples = sorted(orphan_values)[:MAX_ORPHAN_EXAMPLES]
 
     return _ContainmentResult(
         containment=round(containment, 6),
-        child_checked_count=len(child_checked),
+        child_checked_count=child_checked_count,
         orphan_count=orphan_count,
         orphan_percentage=orphan_percentage,
         orphan_examples=orphan_examples,
     )
-
 
 def _column_profiles_by_table(table_profiles: list[DatasetProfile]) -> dict[str, dict[str, ColumnProfile]]:
     return {dp.table: {cp.name: cp for cp in dp.columns} for dp in table_profiles}
@@ -263,10 +278,27 @@ def infer_relationships(
             except Exception:
                 continue  # a malformed profile is treated as "not a parent candidate", not a crash
 
+    # Cache each column's non-missing value counts. A column can participate
+    # in many candidate pairs; never rescan its rows for every comparison.
+    value_counts_cache: dict[tuple[str, str], Counter[str]] = {}
+
+    def counts_for(table_name: str, column_name: str) -> Counter[str]:
+        key = (table_name, column_name)
+        if key not in value_counts_cache:
+            value_counts_cache[key] = _count_non_missing_values(tables[table_name][column_name])
+        return value_counts_cache[key]
+
+    parent_value_sets: dict[tuple[str, str], frozenset[str]] = {}
+    for parent_table, parent_column, _ in parent_candidates:
+        key = (parent_table, parent_column)
+        parent_value_sets[key] = frozenset(counts_for(parent_table, parent_column).keys())
+
     # Best candidate seen so far per (child_table, child_column), so Stage 5's
     # disambiguation can run in a single pass without a second full loop.
     best_by_child: dict[tuple[str, str], RelationshipCandidate] = {}
     runners_up: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    evaluated_pairs = 0
+    inference_started = perf_counter()
 
     for parent_table, parent_column, parent_profile in parent_candidates:
         for child_table, child_columns in profiles_by_table.items():
@@ -274,9 +306,19 @@ def infer_relationships(
                 continue
             for child_column, child_profile in child_columns.items():
                 try:
+                    if not _types_compatible(parent_profile.inferred_type, child_profile.inferred_type):
+                        continue
+                    if child_profile.unique_count > parent_profile.unique_count * MAX_CHILD_TO_PARENT_DISTINCT_RATIO:
+                        continue
+                    if child_profile.null_percentage > MAX_CHILD_NULL_PCT:
+                        continue
+
+                    evaluated_pairs += 1
                     candidate = _evaluate_pair(
-                        tables, parent_table, parent_column, parent_profile,
+                        parent_table, parent_column, parent_profile,
                         child_table, child_column, child_profile,
+                        parent_value_sets[(parent_table, parent_column)],
+                        counts_for(child_table, child_column),
                     )
                 except Exception:
                     continue  # one bad pair never aborts the whole inference pass
@@ -304,6 +346,14 @@ def infer_relationships(
 
     # Deterministic output order, independent of dict iteration order.
     results.sort(key=lambda r: (r.child_table, r.child_column, r.parent_table, r.parent_column))
+    _LOGGER.info(
+        "relationship inference complete parents=%d candidate_pairs=%d cached_columns=%d relationships=%d elapsed_ms=%.1f",
+        len(parent_candidates),
+        evaluated_pairs,
+        len(value_counts_cache),
+        len(results),
+        (perf_counter() - inference_started) * 1000,
+    )
     return results
 
 
@@ -325,25 +375,17 @@ def _runner_up_summary(candidate: RelationshipCandidate) -> dict[str, Any]:
 
 
 def _evaluate_pair(
-    tables: dict[str, "pd.DataFrame"],
     parent_table: str,
     parent_column: str,
     parent_profile: ColumnProfile,
     child_table: str,
     child_column: str,
     child_profile: ColumnProfile,
+    parent_values: frozenset[str],
+    child_counts: Counter[str],
 ) -> Optional[RelationshipCandidate]:
     # Stage 1 — cheap hard gates first, before touching any actual values.
-    if not _types_compatible(parent_profile.inferred_type, child_profile.inferred_type):
-        return None
-    if child_profile.unique_count > parent_profile.unique_count * MAX_CHILD_TO_PARENT_DISTINCT_RATIO:
-        return None
-    if child_profile.null_percentage > MAX_CHILD_NULL_PCT:
-        return None
-
-    parent_series = tables[parent_table][parent_column]
-    child_series = tables[child_table][child_column]
-    containment_result = _compute_containment(parent_series, child_series)
+    containment_result = _compute_containment(parent_values, child_counts)
 
     if containment_result.containment < MIN_CONTAINMENT:
         return None
