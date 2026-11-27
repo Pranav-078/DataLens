@@ -15,6 +15,7 @@ import type { ValidatedFile } from "../modules/uploads/upload.validator.js";
 export interface ProcessUploadInput {
   projectId?: string;
   ownerUserId?: string;
+  profileMode?: "fast" | "full";
   validatedFiles: ValidatedFile[];
   /** Same order as validatedFiles — the caller (upload.controller.ts)
    * already relies on this exact guarantee when calling profileTables
@@ -32,6 +33,8 @@ export interface ProcessUploadResult {
   findingCount: number;
   issueCount: number;
   relationshipCount: number;
+  profileMode: "fast" | "full";
+  sampleSizePerTable: number | null;
 }
 
 /**
@@ -57,7 +60,14 @@ export async function processUpload(
   input: ProcessUploadInput
 ): Promise<ProcessUploadResult> {
   const project = await findOrCreateProject(db, input.projectId, input.ownerUserId);
-  const { versionId, jobId, versionNumber } = await createVersionAndJob(db, { projectId: project.id });
+  const profileMode = input.profileMode ?? "full";
+  const versionLabel = profileMode === "fast"
+    ? "FAST PREVIEW · SAMPLED (up to 20,000 rows/table)"
+    : "FULL ANALYSIS";
+  const { versionId, jobId, versionNumber } = await createVersionAndJob(db, {
+    projectId: project.id,
+    label: versionLabel,
+  });
 
   try {
     const written = await writeUploadedFiles(
@@ -86,7 +96,7 @@ export async function processUpload(
       tableName: f.tableName,
       csvContent: input.buffers[i]!.toString("utf8"),
     }));
-    const profilingResult = await profileTables(tablePayloads);
+    const profilingResult = await profileTables(tablePayloads, profileMode);
 
     const tableRowCounts = Object.fromEntries(input.validatedFiles.map((f) => [f.tableName, f.rowCount]));
     // New Python profiler responses already contain exact, compact issue
@@ -114,6 +124,8 @@ export async function processUpload(
       findingCount: profilingResult.findingCount,
       issueCount: aggregatedIssues.length,
       relationshipCount: profilingResult.relationships.length,
+      profileMode: profilingResult.profileMode ?? profileMode,
+      sampleSizePerTable: profilingResult.sampleSizePerTable ?? null,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
