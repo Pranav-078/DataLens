@@ -97,7 +97,8 @@ Use `docker compose ... pull` / rebuilds only as part of a reviewed release. Kee
 ## Known product limitations to resolve before a public multi-tenant SaaS launch
 
 - Email verification, password reset, MFA, organization roles, invitations, audit log screens and account deletion workflows are not implemented.
-- The IP authentication throttler is process-local. This Compose deployment is deliberately one API replica; use a shared rate-limit store before scaling horizontally.
+- The IP authentication throttler and upload-concurrency gate are process-local. This Compose deployment is deliberately one API replica; use shared stores/coordination before scaling horizontally.
+- Uploads are limited to 50 MB per file, 10 files, and 100 MB per multipart batch by default. Only one large CSV upload is processed at a time per API process to limit memory pressure. Increase these limits only after load testing the host RAM and profiler memory.
 - Registration has no email ownership verification. Keep it disabled except during controlled onboarding.
 - AI answers and RAG retrieval are evidence aids, not guarantees. Review Gemini data-use terms, processing region, retention and contractual requirements before uploading confidential or regulated documents.
 - Large CSV uploads are buffered in API memory and then loaded in profiler memory. Set limits for the host's available RAM and load-test with representative maximum-size files before opening access to external users.
