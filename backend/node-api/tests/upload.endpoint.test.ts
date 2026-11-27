@@ -97,7 +97,13 @@ describe("POST /uploads/validate — integration (mocked Prisma, real HTTP + rea
     expect(res.body.versionNumber).toBe(1);
     expect(res.body.fileCount).toBe(1);
     expect(res.body.files[0]).toMatchObject({ tableName: "people", rowCount: 2 });
-    expect(res.body.profiling).toEqual({ findingCount: 1, issueCount: 1, relationshipCount: 0 });
+    expect(res.body.profiling).toEqual({
+      profileMode: "full",
+      sampleSizePerTable: null,
+      findingCount: 1,
+      issueCount: 1,
+      relationshipCount: 0,
+    });
 
     // The real point of this step: assert what actually got persisted,
     // not just what the HTTP response claims.
