@@ -253,3 +253,28 @@ def test_existing_stub_endpoint_is_unaffected_by_the_new_route():
     resp = client.post("/internal/profile", json={"tableCount": 3})
     assert resp.status_code == 200
     assert resp.json() == {"status": "stub_ok", "receivedTables": 3}
+
+
+def test_fast_preview_samples_rows_and_returns_source_and_profiled_counts():
+    resp = client.post(
+        "/internal/profile/tables",
+        json={
+            "profileMode": "fast",
+            "sampleSizePerTable": 1000,
+            "tables": [
+                {
+                    "tableName": "customers",
+                    "csvContent": _customers_csv(1100),
+                }
+            ],
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["profileMode"] == "fast"
+    assert body["sampleSizePerTable"] == 1000
+    assert body["tables"][0]["rowCount"] == 1100
+    assert body["tables"][0]["profiledRowCount"] == 1000
+    assert body["findings"] == []
+    assert isinstance(body["aggregatedIssues"], list)
