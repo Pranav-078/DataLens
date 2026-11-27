@@ -126,7 +126,7 @@ export function DatasetsPage({ projectId, versionId, projectName, onVersionChang
         <label htmlFor="dataset-version-select">Viewing version</label>
         <select id="dataset-version-select" value={versionId || ""} onChange={handleVersionChange} disabled={historyLoading || versions.length === 0}>
           {versions.length === 0 && <option value="">No versions available</option>}
-          {versions.map(version => <option key={version.id} value={version.id}>Version {version.versionNumber} · {version.status} · {formatDate(version.createdAt)}</option>)}
+          {versions.map(version => <option key={version.id} value={version.id}>Version {version.versionNumber} · {version.status}{version.label ? " · " + version.label : ""} · {formatDate(version.createdAt)}</option>)}
         </select>
         <button className="icon-button" type="button" onClick={loadVersions} disabled={historyLoading} aria-label="Refresh version history"><RefreshCw size={15} className={historyLoading ? "spin" : ""}/></button>
       </div>
@@ -134,6 +134,7 @@ export function DatasetsPage({ projectId, versionId, projectName, onVersionChang
         <span className={"version-state " + versionStatus(selectedVersion.status)}><i/>{selectedVersion.status}</span>
         {selectedVersion.status === "ready" && <span className="version-ready-note"><CheckCircle2 size={13}/> Profiling completed</span>}
         {selectedVersion.status === "failed" && <span className="version-failed-note">This upload failed. Previous successful versions are still available.</span>}
+        {String(selectedVersion.label || "").startsWith("FAST PREVIEW") && <span className="version-preview-note">Sample-based estimates · not a full-data audit</span>}
       </div>}
     </section>
 
