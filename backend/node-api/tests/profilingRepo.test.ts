@@ -5,6 +5,7 @@ import {
   createVersionAndJob,
   createDatasetTables,
   persistProfilingOutcome,
+  replaceVersionRelationships,
   markVersionAndJobFailed,
 } from "../src/repo/profilingRepo.js";
 import { AppError } from "../src/errors/AppError.js";
@@ -618,5 +619,61 @@ describe("markVersionAndJobFailed", () => {
     await markVersionAndJobFailed(db, { versionId, jobId, errorMessage: "network error" });
 
     expect(db._fake.versions.get(versionId)?.status).not.toBe("profiling");
+  });
+});
+
+
+describe("replaceVersionRelationships — rebuild existing saved versions", () => {
+  it("replaces persisted links and recalculates referential integrity without changing quality issues", async () => {
+    const db = createFakeDb();
+    const project = await db.project.create({ data: { name: "Olist" } });
+    const { versionId, jobId } = await createVersionAndJob(db, { projectId: project.id });
+    const { tableIdByName } = await createDatasetTables(db, {
+      versionId,
+      tables: [
+        { tableName: "customers", normalizedName: "customers", originalFilename: "customers.csv", filePath: "/storage/customers.csv", rowCount: 30, columnCount: 1, fileSizeBytes: 100n, checksum: "c" },
+        { tableName: "orders", normalizedName: "orders", originalFilename: "orders.csv", filePath: "/storage/orders.csv", rowCount: 40, columnCount: 1, fileSizeBytes: 100n, checksum: "o" },
+      ],
+    });
+    await persistProfilingOutcome(db, {
+      versionId,
+      jobId,
+      tableIdByName,
+      tableProfiles: [
+        { tableName: "customers", rowCount: 30, columnCount: 1, columns: [{ columnName: "id", inferredType: "string", nullCount: 0, nullPercentage: 0, distinctCount: 30, uniquenessRatio: 1 }] },
+        { tableName: "orders", rowCount: 40, columnCount: 1, columns: [{ columnName: "customer_id", inferredType: "string", nullCount: 0, nullPercentage: 0, distinctCount: 20, uniquenessRatio: 0.5 }] },
+      ],
+      aggregatedIssues: [{
+        tableName: "orders", columnName: "customer_id", issueType: "example_issue",
+        dimension: "validity", severity: "medium", title: "example", description: "example",
+        affectedRows: 1, totalRows: 40, affectedPercentage: 2.5, examples: [], evidence: {}, fingerprint: "issue-fp",
+      }],
+      relationships: [],
+    });
+
+    const rebuilt = {
+      parent_table: "customers", parent_column: "id",
+      child_table: "orders", child_column: "customer_id",
+      confidence: 0.98, confidence_band: "high", status: "inferred",
+      value_overlap: 1, orphan_count: 0, orphan_percentage: 0,
+      orphan_examples: [], evidence: { orphanMetricsExact: true },
+    };
+    await replaceVersionRelationships(db, { versionId, relationships: [rebuilt] });
+
+    expect(db._fake.relationships).toHaveLength(1);
+    expect(db._fake.relationships[0]).toMatchObject({
+      versionId,
+      parentTableId: tableIdByName.customers,
+      childTableId: tableIdByName.orders,
+      confidence: 0.98,
+      orphanCount: 0,
+    });
+    expect(db._fake.issues).toHaveLength(1);
+    expect(db._fake.qualityScores[0]?.referentialIntegrity).toBe(100);
+
+    await replaceVersionRelationships(db, { versionId, relationships: [] });
+    expect(db._fake.relationships).toHaveLength(0);
+    expect(db._fake.qualityScores[0]?.referentialIntegrity).toBeNull();
+    expect(db._fake.issues).toHaveLength(1);
   });
 });
