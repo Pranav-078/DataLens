@@ -5,10 +5,12 @@ on:
     branches:
       - chore/reorganize-project-structure
       - fix/compact-profiler-results
+      - fix/relationship-intelligence
   pull_request:
     branches:
       - main
       - fix/track-registration-rate-limit
+      - fix/compact-profiler-results
 
 permissions:
   contents: read
