@@ -4,8 +4,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 RUN groupadd --system datasage \
     && useradd --system --gid datasage --home-dir /app datasage
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir .
+COPY requirements.lock ./
+RUN pip install --no-cache-dir --no-deps -r requirements.lock
 COPY --chown=datasage:datasage app ./app
 COPY --chown=datasage:datasage vendor ./vendor
 USER datasage
