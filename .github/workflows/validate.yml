@@ -101,9 +101,9 @@ jobs:
       - name: Resolve and pin Python runtime and dev dependencies
         run: |
           python -m pip install .
-          python -m pip freeze --exclude-editable | grep -v '^datasage-profiler==' > requirements.lock
+          python -m pip freeze --exclude-editable | grep -viE '^(datasage[-_]profiler([[:space:]]*@|==)|-e )' > requirements.lock
           python -m pip install -e ".[dev]"
-          python -m pip freeze --exclude-editable | grep -v '^datasage-profiler==' > requirements-dev.lock
+          python -m pip freeze --exclude-editable | grep -viE '^(datasage[-_]profiler([[:space:]]*@|==)|-e )' > requirements-dev.lock
       - name: Audit resolved third-party Python dependencies
         run: |
           python -m pip install pip-audit
