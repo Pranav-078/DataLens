@@ -41,6 +41,8 @@ export const uploadMiddleware = upload.array("files");
 export async function postUploadValidate(req: Request, res: Response) {
   const files = (req.files as Express.Multer.File[] | undefined) ?? [];
   const projectId = typeof req.body?.projectId === "string" ? req.body.projectId : undefined;
+  // Older clients omit profileMode; keep them on Full Analysis.
+  const profileMode = req.body?.profileMode === "fast" ? "fast" : "full";
   const auth = res.locals.datalensAuth as { userId: string | null; isAdmin: boolean } | undefined;
 
   const validated = await validateUploadBatch(
@@ -50,6 +52,7 @@ export async function postUploadValidate(req: Request, res: Response) {
   const result = await processUpload(prisma as unknown as ProfilingDb, {
     projectId,
     ownerUserId: auth && !auth.isAdmin ? auth.userId ?? undefined : undefined,
+    profileMode,
     validatedFiles: validated,
     buffers: files.map((f) => f.buffer),
   });
@@ -71,6 +74,8 @@ export async function postUploadValidate(req: Request, res: Response) {
       checksumSha256: f.checksumSha256,
     })),
     profiling: {
+      profileMode: result.profileMode,
+      sampleSizePerTable: result.sampleSizePerTable,
       findingCount: result.findingCount,
       issueCount: result.issueCount,
       relationshipCount: result.relationshipCount,
