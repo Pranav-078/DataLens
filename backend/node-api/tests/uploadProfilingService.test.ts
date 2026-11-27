@@ -78,7 +78,7 @@ describe("processUpload — compact profiler response", () => {
     const db = createFakeDb();
     const result = await processUpload(db, {
       validatedFiles: [validatedFile({ rowCount: 100 })],
-      buffers: [Buffer.from("id,email\\n1,a@x.com\\n")],
+      buffers: [Buffer.from("id,email\n1,a@x.com\n")],
     });
 
     expect(result.findingCount).toBe(100);
