@@ -220,7 +220,7 @@ def _count_non_missing_values(series: pd.Series) -> Counter[str]:
 
 
 def _compute_containment_cached(
-    parent_values: frozenset[str],
+    parent_values: Counter[str],
     child_counts: Counter[str],
 ) -> _ContainmentResult:
     """Compute exact containment from cached distinct values and counts.
@@ -299,10 +299,12 @@ def infer_relationships(
             value_counts_cache[key] = _count_non_missing_values(tables[table_name][column_name])
         return value_counts_cache[key]
 
-    parent_value_sets: dict[tuple[str, str], frozenset[str]] = {}
+    # Counter membership is O(1), so reuse it directly as the parent-value
+    # set instead of allocating a second frozenset containing the same keys.
+    parent_value_counts: dict[tuple[str, str], Counter[str]] = {}
     for parent_table, parent_column, _ in parent_candidates:
         key = (parent_table, parent_column)
-        parent_value_sets[key] = frozenset(counts_for(parent_table, parent_column).keys())
+        parent_value_counts[key] = counts_for(parent_table, parent_column)
 
     # Best candidate seen so far per (child_table, child_column), so Stage 5's
     # disambiguation can run in a single pass without a second full loop.
@@ -328,7 +330,7 @@ def infer_relationships(
                     candidate = _evaluate_pair(
                         parent_table, parent_column, parent_profile,
                         child_table, child_column, child_profile,
-                        parent_value_sets[(parent_table, parent_column)],
+                        parent_value_counts[(parent_table, parent_column)],
                         counts_for(child_table, child_column),
                     )
                 except Exception:
