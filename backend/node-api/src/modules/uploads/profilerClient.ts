@@ -108,6 +108,12 @@ export interface ProfileTablesResponse {
   relationships: ProfileRelationship[];
 }
 
+export interface ProfileRelationshipsResponse {
+  status: "relationships_inferred";
+  tableCount: number;
+  relationships: ProfileRelationship[];
+}
+
 function isProfileFinding(value: unknown): value is ProfileFinding {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -302,5 +308,27 @@ export async function profileTables(
     "/internal/profile/tables",
     { tables, profileMode, sampleSizePerTable },
     isProfileTablesResponse
+  );
+}
+
+
+function isProfileRelationshipsResponse(value: unknown): value is ProfileRelationshipsResponse {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return v.status === "relationships_inferred"
+    && typeof v.tableCount === "number"
+    && Array.isArray(v.relationships)
+    && v.relationships.every(isProfileRelationship);
+}
+
+/** Recomputes links from a version's saved CSVs without rerunning issue detectors. */
+export async function inferRelationshipsFromTables(
+  tables: { tableName: string; csvContent: string }[],
+  sampleSizePerTable = 5_000
+): Promise<ProfileRelationshipsResponse> {
+  return postToProfiler(
+    "/internal/profile/relationships",
+    { tables, sampleSizePerTable },
+    isProfileRelationshipsResponse
   );
 }
