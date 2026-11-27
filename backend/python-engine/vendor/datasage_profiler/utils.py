@@ -157,31 +157,54 @@ def parse_date(value: Any) -> Optional[datetime]:
     return _parse_date_text(text)
 
 
-def date_format(value: Any) -> Optional[str]:
-    text = clean_text(value).strip()
+_DATE_FORMAT_PATTERNS: Tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"^\\d{4}-\\d{2}-\\d{2}$"), "%Y-%m-%d"),
+    (re.compile(r"^\\d{4}/\\d{2}/\\d{2}$"), "%Y/%m/%d"),
+    (re.compile(r"^\\d{2}/\\d{2}/\\d{4}$"), "%d/%m/%Y"),
+    (re.compile(r"^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$"), "%Y-%m-%d %H:%M:%S"),
+    (re.compile(r"^\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2}$"), "%Y/%m/%d %H:%M:%S"),
+    (re.compile(r"^\\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}:\\d{2}$"), "%d/%m/%Y %H:%M:%S"),
+    (re.compile(r"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"), "%Y-%m-%dT%H:%M:%SZ"),
+    (re.compile(r"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}$"), "%Y-%m-%dT%H:%M:%S"),
+)
+
+@lru_cache(maxsize=131072)
+def _date_format_text(text: str) -> Optional[str]:
+    for pattern, label in _DATE_FORMAT_PATTERNS:
+        if pattern.fullmatch(text):
+            return label
     for candidate in _DATE_FORMATS:
         try:
             datetime.strptime(text, candidate)
             return candidate
         except ValueError:
             continue
-    return "iso-or-library-parsed" if parse_date(text) is not None else None
+    return "iso-or-library-parsed" if _parse_date_text(text) is not None else None
 
 
-def infer_type(
-    series: pd.Series,
-    missing_tokens: Iterable[str],
+def date_format(value: Any) -> Optional[str]:
+    text = clean_text(value).strip()
+    if not _looks_like_date_text(text):
+        return None
+    return _date_format_text(text)
+
+def infer_type_from_values(
+    values: Sequence[Any],
     numeric_name_hint: bool = False,
     date_name_hint: bool = False,
 ) -> str:
-    values = non_missing_values(series, missing_tokens)
+    """Infer a column type from values already filtered by the caller.
+
+    Keeps the original inference thresholds while avoiding a second pandas
+    Series-to-list conversion and missing-value scan in the profiling path.
+    """
     if not values:
         return "unknown"
     parsed_numbers = [parse_number(value) for value in values]
     numeric_values = [number for number in parsed_numbers if number is not None]
     numeric_count = len(numeric_values)
     date_count = sum(parse_date(value) is not None for value in values)
-    boolean_count = sum(value.casefold() in {"true", "false", "yes", "no", "0", "1"} for value in values)
+    boolean_count = sum(str(value).casefold() in {"true", "false", "yes", "no", "0", "1"} for value in values)
     total = len(values)
     is_integer = all(number.is_integer() for number in numeric_values)
     if date_name_hint and date_count / total >= 0.5:
@@ -198,6 +221,15 @@ def infer_type(
         return "boolean"
     return "string"
 
+
+def infer_type(
+    series: pd.Series,
+    missing_tokens: Iterable[str],
+    numeric_name_hint: bool = False,
+    date_name_hint: bool = False,
+) -> str:
+    values = non_missing_values(series, missing_tokens)
+    return infer_type_from_values(values, numeric_name_hint, date_name_hint)
 
 def stable_issue_id(payload: dict) -> str:
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
