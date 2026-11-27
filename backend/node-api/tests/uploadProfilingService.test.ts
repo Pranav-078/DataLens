@@ -48,6 +48,46 @@ describe("processUpload — success path", () => {
   });
 });
 
+describe("processUpload — compact profiler response", () => {
+  it("persists pre-aggregated quality issues without row-level findings", async () => {
+    const { profileTables } = await import("../src/modules/uploads/profilerClient.js");
+    vi.mocked(profileTables).mockResolvedValue({
+      status: "profiled",
+      tableCount: 1,
+      findingCount: 100,
+      tables: [{ tableName: "customers", rowCount: 100, columnCount: 2, columns: [] }],
+      findings: [],
+      aggregatedIssues: [{
+        tableName: "customers",
+        columnName: "email",
+        issueType: "empty_string",
+        dimension: "completeness",
+        severity: "medium",
+        title: "empty string in customers.email",
+        description: "10 of 100 row(s) affected by empty string.",
+        affectedRows: 10,
+        totalRows: 100,
+        affectedPercentage: 10,
+        examples: ["customers:1", "customers:2"],
+        evidence: { findingCountInGroup: 100 },
+        fingerprint: "abc123",
+      }],
+      relationships: [],
+    });
+
+    const db = createFakeDb();
+    const result = await processUpload(db, {
+      validatedFiles: [validatedFile({ rowCount: 100 })],
+      buffers: [Buffer.from("id,email\\n1,a@x.com\\n")],
+    });
+
+    expect(result.findingCount).toBe(100);
+    expect(result.issueCount).toBe(1);
+    expect(db._fake.issues).toHaveLength(1);
+    expect(db._fake.issues[0]?.affectedRows).toBe(10);
+  });
+});
+
 describe("processUpload — failure path", () => {
   it("marks version/job failed and re-throws the original error when profiling fails", async () => {
     const { profileTables } = await import("../src/modules/uploads/profilerClient.js");
