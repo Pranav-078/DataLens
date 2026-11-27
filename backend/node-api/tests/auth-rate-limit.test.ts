@@ -53,3 +53,23 @@ describe("authentication attempt limiter", () => {
     expect(attempts.has(key)).toBe(false);
   });
 });
+
+
+describe("bounded authentication attempt store", () => {
+  it("expires stale keys and evicts the oldest entry when the store reaches its cap", async () => {
+    const { recordFailedAttempt, AUTH_ATTEMPT_MAX_KEYS } = await import("../src/modules/auth/auth-rate-limit.js");
+    const store = new Map();
+    const now = 1_000_000;
+    store.set("expired", { count: 1, resetAt: now - 1 });
+    for (let index = 0; index < AUTH_ATTEMPT_MAX_KEYS - 1; index += 1) {
+      store.set("ip-" + index, { count: 1, resetAt: now + 60_000 });
+    }
+
+    recordFailedAttempt(store, "new-ip", now);
+
+    expect(store.size).toBe(AUTH_ATTEMPT_MAX_KEYS);
+    expect(store.has("expired")).toBe(false);
+    expect(store.has("ip-0")).toBe(false);
+    expect(store.has("new-ip")).toBe(true);
+  });
+});
