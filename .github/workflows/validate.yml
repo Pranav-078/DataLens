@@ -103,7 +103,11 @@ jobs:
       - name: Smoke-test production stack, database privileges and browser origin checks
         run: |
           set -euo pipefail
-          docker compose --env-file .env.production.example -f docker-compose.production.yml up -d
+          if ! docker compose --env-file .env.production.example -f docker-compose.production.yml up -d; then
+            docker compose --env-file .env.production.example -f docker-compose.production.yml ps -a
+            docker compose --env-file .env.production.example -f docker-compose.production.yml logs --no-color --tail 200 db migrate db-privileges profiler
+            exit 1
+          fi
           ready=0
           for attempt in $(seq 1 36); do
             if curl --fail --silent http://127.0.0.1:8080/api/health/ready > readiness.json; then
