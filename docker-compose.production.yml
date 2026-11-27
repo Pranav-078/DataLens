@@ -95,6 +95,7 @@ services:
 
   api:
     image: datalens-api:production
+    stop_grace_period: 5m
     build:
       context: ./backend/node-api
       dockerfile: Dockerfile
