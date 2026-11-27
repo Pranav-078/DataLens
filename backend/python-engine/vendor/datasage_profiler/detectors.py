@@ -244,16 +244,19 @@ class TypeQualityDetector:
             # Dataset profiling has already inferred this column's type.
             # Re-running infer_type here scans and reparses every cell again.
             inferred = profile.inferred_type
-            numeric_values = [(row, value) for row, value in values if parse_number(value) is not None]
-            # Date parsing is expensive; ordinary text and identifier columns
-            # do not need a second date-parser pass.
-            date_values = (
-                [(row, value) for row, value in values if parse_date(value) is not None]
+            numeric_parsed = [(row, value, parse_number(value)) for row, value in values]
+            numeric_values = [(row, value) for row, value, number in numeric_parsed if number is not None]
+            # Date parsing is cached and each date-like cell is evaluated once
+            # in this detector; reuse the parsed result for both invalid-date
+            # findings and format consistency checks.
+            date_parsed = (
+                [(row, value, parse_date(value)) for row, value in values]
                 if date_hint or inferred == "date"
                 else []
             )
+            date_values = [(row, value) for row, value, parsed in date_parsed if parsed is not None]
             if (numeric_hint or inferred in {"integer", "float"}) and len(numeric_values) >= 3:
-                invalid = [(row, value) for row, value in values if parse_number(value) is None]
+                invalid = [(row, value) for row, value, number in numeric_parsed if number is None]
                 for row, value in invalid:
                     findings.append(
                         _issue(
@@ -332,7 +335,7 @@ class TypeQualityDetector:
                     )
                 )
             if date_hint or inferred == "date":
-                invalid_dates = [(row, value) for row, value in values if parse_date(value) is None]
+                invalid_dates = [(row, value) for row, value, parsed in date_parsed if parsed is None]
                 for row, value in invalid_dates:
                     findings.append(
                         _issue(
