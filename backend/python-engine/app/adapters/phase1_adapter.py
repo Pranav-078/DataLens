@@ -259,6 +259,8 @@ def aggregate_profile_result(
         key = (issue.issue_type, issue.table, issue.column)
         group = groups.get(key)
         mapped_severity = _SEVERITY_MAP[issue.severity]
+        total_source_rows = (source_row_counts or {}).get(issue.table, len(frame))
+        table_is_estimated = estimated and len(frame) < total_source_rows
 
         # This is the exact evidence shape the old Node aggregation received
         # from the first row-level Finding, except the full index array is
@@ -294,8 +296,9 @@ def aggregate_profile_result(
                 "issueType": issue.issue_type,
                 "dimension": _DIMENSION_BY_ISSUE_TYPE[issue.issue_type],
                 "severity": mapped_severity,
-                "totalRows": (source_row_counts or {}).get(issue.table, len(frame)),
+                "totalRows": total_source_rows,
                 "profiledRows": len(frame),
+                "estimated": table_is_estimated,
                 "rowUids": set(),
                 "examples": [],
                 "exampleSet": set(),
@@ -327,7 +330,7 @@ def aggregate_profile_result(
             # Preserve legacy semantics for table/column-level signals.
             affected_rows = total_rows
             affected_percentage = 100.0 if total_rows > 0 else 0.0
-        elif estimated and profiled_rows > 0:
+        elif group["estimated"] and profiled_rows > 0:
             # Fast Preview reports a full-table estimate derived from the
             # sampled affected-row rate. It never presents sample counts as
             # exact full-data counts.
@@ -369,12 +372,12 @@ def aggregate_profile_result(
             "totalRows": total_rows,
             "affectedPercentage": affected_percentage,
             "examples": [] if all_marker_level else group["examples"],
-            "estimated": estimated,
+            "estimated": group["estimated"],
             "evidence": {
                 "sampleFindingEvidence": group["sampleEvidence"],
                 "findingCountInGroup": group["findingCountInGroup"],
                 "analysisMode": "fast" if estimated else "full",
-                "estimated": estimated,
+                "estimated": group["estimated"],
                 "profiledRows": profiled_rows,
                 "sourceRows": total_rows,
             },
