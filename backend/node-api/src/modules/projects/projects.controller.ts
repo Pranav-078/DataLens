@@ -46,6 +46,7 @@ export async function listVersions(req: Request, res: Response) {
     versions: versions.map((v) => ({
       id: v.id,
       versionNumber: v.versionNumber,
+      label: v.label ?? null,
       status: v.status,
       createdAt: v.createdAt,
     })),
@@ -61,6 +62,7 @@ export async function getVersionDetails(req: Request, res: Response) {
     id: version.id,
     projectId: version.projectId,
     versionNumber: version.versionNumber,
+    label: version.label ?? null,
     status: version.status,
     createdAt: version.createdAt,
   });
