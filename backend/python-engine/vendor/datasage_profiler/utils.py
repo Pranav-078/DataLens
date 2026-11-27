@@ -108,7 +108,7 @@ def name_matches(name: str, patterns: Sequence[str]) -> bool:
     )
 
 
-_NUMERIC_TEXT_SHAPE = re.compile(r"^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?$")
+_NUMERIC_TEXT_SHAPE = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 
 
 def parse_number(value: Any) -> Optional[float]:
