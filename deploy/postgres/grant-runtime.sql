@@ -8,7 +8,8 @@ SELECT format(
 )
 WHERE NOT EXISTS (
   SELECT 1 FROM pg_roles WHERE rolname = :'app_user'
-) \gexec
+) 
+\gexec
 
 ALTER ROLE :"app_user" WITH LOGIN PASSWORD :'app_password';
 GRANT CONNECT ON DATABASE :"db_name" TO :"app_user";
