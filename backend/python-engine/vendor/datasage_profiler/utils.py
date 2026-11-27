@@ -158,14 +158,14 @@ def parse_date(value: Any) -> Optional[datetime]:
 
 
 _DATE_FORMAT_PATTERNS: Tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"^\\d{4}-\\d{2}-\\d{2}$"), "%Y-%m-%d"),
-    (re.compile(r"^\\d{4}/\\d{2}/\\d{2}$"), "%Y/%m/%d"),
-    (re.compile(r"^\\d{2}/\\d{2}/\\d{4}$"), "%d/%m/%Y"),
-    (re.compile(r"^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$"), "%Y-%m-%d %H:%M:%S"),
-    (re.compile(r"^\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2}$"), "%Y/%m/%d %H:%M:%S"),
-    (re.compile(r"^\\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}:\\d{2}$"), "%d/%m/%Y %H:%M:%S"),
-    (re.compile(r"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"), "%Y-%m-%dT%H:%M:%SZ"),
-    (re.compile(r"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}$"), "%Y-%m-%dT%H:%M:%S"),
+    (re.compile(r"^\d{4}-\d{2}-\d{2}$"), "%Y-%m-%d"),
+    (re.compile(r"^\d{4}/\d{2}/\d{2}$"), "%Y/%m/%d"),
+    (re.compile(r"^\d{2}/\d{2}/\d{4}$"), "%d/%m/%Y"),
+    (re.compile(r"^\d{4}-\d{2}-\d{2}$"), "%Y-%m-%d"),
+    (re.compile(r"^\d{4}/\d{2}/\d{2}$"), "%Y/%m/%d"),
+    (re.compile(r"^\d{2}/\d{2}/\d{4}$"), "%d/%m/%Y"),
+    (re.compile(r"^\d{4}-\d{2}-\d{2}$"), "%Y-%m-%d"),
+    (re.compile(r"^\d{4}-\d{2}-\d{2}$"), "%Y-%m-%d"),
 )
 
 @lru_cache(maxsize=131072)
