@@ -293,9 +293,11 @@ export interface ProfilingDb {
   inferredRelationship: {
     create(args: { data: CreateInferredRelationshipInput }): Promise<IdRow>;
     findMany(args: { where: { versionId: string } }): Promise<InferredRelationshipRow[]>;
+    deleteMany(args: { where: { versionId: string } }): Promise<{ count: number }>;
   };
   qualityScore: {
     create(args: { data: CreateQualityScoreInput }): Promise<IdRow>;
+    update(args: { where: { versionId: string }; data: Omit<CreateQualityScoreInput, "versionId"> }): Promise<IdRow>;
     findUnique(args: { where: { versionId: string } }): Promise<QualityScoreRow | null>;
   };
   $transaction<T>(fn: (tx: ProfilingDb) => Promise<T>): Promise<T>;
