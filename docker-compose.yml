@@ -45,7 +45,7 @@ services:
       MAX_FILES_PER_UPLOAD: ${MAX_FILES_PER_UPLOAD}
       # Always use Compose DNS inside the Docker network; localhost here is the API container.
       PROFILER_BASE_URL: http://profiler:8001
-      PROFILER_TIMEOUT_MS: ${PROFILER_TIMEOUT_MS}
+      PROFILER_TIMEOUT_MS: ${PROFILER_TIMEOUT_MS:-240000}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-30000}
       RAG_RERANK_ENABLED: ${RAG_RERANK_ENABLED:-true}
