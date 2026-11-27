@@ -11,6 +11,23 @@ import { normalizeTableName } from "./tableName.js";
 // loaded via createRequire rather than a top-level import.
 const require = createRequire(import.meta.url);
 
+// Some file-type versions deliberately return undefined for malformed or
+// truncated input instead of throwing. Keep a small set of unambiguous
+// binary signatures so a truncated binary upload cannot fall through to
+// the CSV encoding/parser checks as though it were plain text.
+const KNOWN_BINARY_SIGNATURES = [
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), // PNG
+  Buffer.from([0xff, 0xd8, 0xff]), // JPEG
+  Buffer.from("GIF87a", "ascii"),
+  Buffer.from("GIF89a", "ascii"),
+  Buffer.from("%PDF-", "ascii"),
+  Buffer.from([0x50, 0x4b, 0x03, 0x04]), // ZIP-based formats, including XLSX
+  Buffer.from([0x1f, 0x8b]), // GZIP
+  Buffer.from([0x7f, 0x45, 0x4c, 0x46]), // ELF
+  Buffer.from([0x49, 0x49, 0x2a, 0x00]), // TIFF, little-endian
+  Buffer.from([0x4d, 0x4d, 0x00, 0x2a]), // TIFF, big-endian
+];
+
 export interface UploadFileInput {
   originalFilename: string;
   buffer: Buffer;
@@ -66,9 +83,9 @@ export function checkFileSize(filename: string, sizeBytes: number): void {
  * CSV has no magic bytes of its own, so we can't positively confirm "this
  * is a CSV" from content alone. What we CAN do is confirm it is NOT some
  * other known binary format wearing a .csv extension (a renamed .xlsx or
- * .png, for instance) — `file-type` sniffs magic bytes and returns a
- * result only when it recognizes a binary signature. A CSV/plain-text file
- * correctly produces no match, which is the expected "safe" outcome here.
+ * .png, for instance). file-type detects complete binary signatures; the
+ * fallback below also rejects common, unambiguous signatures when the
+ * binary file is truncated before file-type can identify its full format.
  */
 export async function checkFileType(filename: string, buffer: Buffer): Promise<void> {
   if (!filename.toLowerCase().endsWith(".csv")) {
@@ -79,18 +96,21 @@ export async function checkFileType(filename: string, buffer: Buffer): Promise<v
   try {
     detected = await fileTypeFromBuffer(buffer);
   } catch {
-    // fileTypeFromBuffer can THROW (not just return undefined) when the
-    // buffer's leading bytes match a known binary format's magic signature
-    // but the buffer is too short/truncated for it to fully parse that
-    // format's structure (e.g. a PNG header with no actual image data
-    // after it). That is itself a strong signal this is a disguised or
-    // corrupt binary file, not plain-text CSV — so it's treated as a
-    // detected, rejected type rather than allowed to crash the request.
+    // Older file-type parsers may throw when a recognized binary signature
+    // is too short to parse. Treat that the same as any other binary file.
     throw Errors.unsupportedFileType(filename, "unknown binary format (truncated signature)");
   }
 
   if (detected) {
     throw Errors.unsupportedFileType(filename, detected.mime);
+  }
+
+  const hasKnownBinarySignature = KNOWN_BINARY_SIGNATURES.some(signature =>
+    buffer.length >= signature.length &&
+    buffer.subarray(0, signature.length).equals(signature)
+  );
+  if (hasKnownBinarySignature) {
+    throw Errors.unsupportedFileType(filename, "unknown binary format (truncated signature)");
   }
 }
 

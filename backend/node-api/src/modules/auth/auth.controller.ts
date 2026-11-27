@@ -3,6 +3,12 @@ import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 import { config } from "../../config.js";
 import { prisma } from "../../db/prisma.js";
+import {
+  clearFailedAttempts,
+  isRateLimited,
+  recordFailedAttempt,
+  type AuthAttemptStore,
+} from "./auth-rate-limit.js";
 
 const COOKIE_NAME = "datalens_session";
 const SESSION_SECONDS = 8 * 60 * 60;
@@ -18,7 +24,7 @@ const registrationSchema = z.object({
 
 type SessionPayload = { email: string; userId: string | null; exp: number };
 type AuthContext = { userId: string | null; email: string; isAdmin: boolean };
-const attempts = new Map<string, { count: number; resetAt: number }>();
+const attempts: AuthAttemptStore = new Map();
 
 function cookieValue(req: Request): string | undefined {
   const header = req.headers.cookie || "";
@@ -108,29 +114,6 @@ function passwordMatches(password: string, packed: string | undefined): boolean 
   }
 }
 
-function rateLimited(key: string): boolean {
-  const current = attempts.get(key);
-  if (!current) return false;
-  if (current.resetAt <= Date.now()) {
-    attempts.delete(key);
-    return false;
-  }
-  return current.count >= 5;
-}
-
-function registerFailure(key: string): void {
-  const current = attempts.get(key);
-  if (!current || current.resetAt <= Date.now()) {
-    attempts.set(key, { count: 1, resetAt: Date.now() + 15 * 60 * 1000 });
-  } else {
-    current.count += 1;
-  }
-}
-
-function clearFailures(key: string): void {
-  attempts.delete(key);
-}
-
 function authError(res: Response, status: number, code: string, message: string): void {
   res.status(status).json({ error: { code, message } });
 }
@@ -189,16 +172,20 @@ export async function postAuthRegister(req: Request, res: Response): Promise<voi
     return;
   }
 
-  const parsed = registrationSchema.safeParse(req.body);
-  if (!parsed.success) {
-    authError(res, 400, "INVALID_REGISTRATION", parsed.error.issues[0]?.message || "Enter your name, a valid email and a password with at least 8 characters.");
+  const ip = req.ip || "unknown";
+  const rateKey = "register:" + ip;
+  if (isRateLimited(attempts, rateKey)) {
+    authError(res, 429, "REGISTRATION_RATE_LIMITED", "Too many account creation attempts. Try again in 15 minutes.");
     return;
   }
 
-  const ip = req.ip || "unknown";
-  const rateKey = "register:" + ip;
-  if (rateLimited(rateKey)) {
-    authError(res, 429, "REGISTRATION_RATE_LIMITED", "Too many account creation attempts. Try again in 15 minutes.");
+  // Count every registration attempt, including invalid and duplicate requests.
+  // A successful registration clears the counter below.
+  recordFailedAttempt(attempts, rateKey);
+
+  const parsed = registrationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    authError(res, 400, "INVALID_REGISTRATION", parsed.error.issues[0]?.message || "Enter your name, a valid email and a password with at least 8 characters.");
     return;
   }
 
@@ -218,7 +205,7 @@ export async function postAuthRegister(req: Request, res: Response): Promise<voi
       },
     });
 
-    clearFailures(rateKey);
+    clearFailedAttempts(attempts, rateKey);
     setSessionCookie(res, issueSession(user.email, user.id), SESSION_SECONDS);
     res.status(201).json({ authenticated: true, user: publicUser(user) });
   } catch (error) {
@@ -236,16 +223,19 @@ export async function postAuthLogin(req: Request, res: Response): Promise<void> 
     return;
   }
 
-  const parsed = loginSchema.safeParse(req.body);
-  if (!parsed.success) {
-    authError(res, 400, "INVALID_LOGIN", "Enter a valid email and password.");
+  const ip = req.ip || "unknown";
+  const rateKey = "login:" + ip;
+  if (isRateLimited(attempts, rateKey)) {
+    authError(res, 429, "LOGIN_RATE_LIMITED", "Too many sign-in attempts. Try again in 15 minutes.");
     return;
   }
 
-  const ip = req.ip || "unknown";
-  const rateKey = "login:" + ip;
-  if (rateLimited(rateKey)) {
-    authError(res, 429, "LOGIN_RATE_LIMITED", "Too many sign-in attempts. Try again in 15 minutes.");
+  // Count malformed login requests too, not only well-formed wrong passwords.
+  recordFailedAttempt(attempts, rateKey);
+
+  const parsed = loginSchema.safeParse(req.body);
+  if (!parsed.success) {
+    authError(res, 400, "INVALID_LOGIN", "Enter a valid email and password.");
     return;
   }
 
@@ -259,7 +249,7 @@ export async function postAuthLogin(req: Request, res: Response): Promise<void> 
   });
 
   if (user && passwordMatches(parsed.data.password, user.passwordHash)) {
-    clearFailures(rateKey);
+    clearFailedAttempts(attempts, rateKey);
     setSessionCookie(res, issueSession(user.email, user.id), SESSION_SECONDS);
     res.status(200).json({ authenticated: true, user: publicUser(user) });
     return;
@@ -273,7 +263,7 @@ export async function postAuthLogin(req: Request, res: Response): Promise<void> 
     passwordMatches(parsed.data.password, config.AUTH_ADMIN_PASSWORD_HASH);
 
   if (adminMatch) {
-    clearFailures(rateKey);
+    clearFailedAttempts(attempts, rateKey);
     setSessionCookie(res, issueSession(email, null), SESSION_SECONDS);
     res.status(200).json({
       authenticated: true,
@@ -282,7 +272,6 @@ export async function postAuthLogin(req: Request, res: Response): Promise<void> 
     return;
   }
 
-  registerFailure(rateKey);
   authError(res, 401, "INVALID_CREDENTIALS", "Email or password is incorrect.");
 }
 
