@@ -35,3 +35,8 @@ evaluation/results/*.json
 # Frontend
 frontend/node_modules/
 frontend/dist/
+
+# Production deployment secrets/configuration
+.env.production
+.env.production.local
+.env.*.local
