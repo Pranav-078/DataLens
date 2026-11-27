@@ -7,6 +7,7 @@ import json
 import math
 import re
 from datetime import datetime
+from functools import lru_cache
 from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 import pandas as pd
@@ -25,13 +26,50 @@ _DATE_FORMATS: Tuple[str, ...] = (
     "%Y-%m-%dT%H:%M:%SZ",
 )
 
+# Fast lexical gate: the general pandas/dateutil parser is useful for flexible
+# human-entered dates, but calling it for every arbitrary cell (UUIDs, names,
+# descriptions, etc.) is disproportionately expensive on large CSV batches.
+# Only date-shaped values are allowed through to the full parser.
+_DATE_WORDS = frozenset({
+    "jan", "january", "feb", "february", "mar", "march", "apr", "april",
+    "may", "jun", "june", "jul", "july", "aug", "august", "sep", "sept",
+    "september", "oct", "october", "nov", "november", "dec", "december",
+    "mon", "monday", "tue", "tues", "tuesday", "wed", "wednesday",
+    "thu", "thur", "thurs", "thursday", "fri", "friday", "sat", "saturday",
+    "sun", "sunday", "am", "pm", "utc", "gmt", "t", "z", "st", "nd", "rd", "th",
+})
+_DATE_WORD_PATTERN = re.compile(r"[A-Za-z]+")
+_NUMERIC_DATE_SHAPE = re.compile(r"^[0-9][0-9:/ .+\\-TtZz]*$")
+_MONTH_DATE_SHAPE = re.compile(r"^[A-Za-z0-9 ,./:+\\-]+$")
+
+
+def _looks_like_date_text(text: str) -> bool:
+    if not text or not any(char.isdigit() for char in text):
+        return False
+
+    words = {word.casefold() for word in _DATE_WORD_PATTERN.findall(text)}
+    if any(word not in _DATE_WORDS for word in words):
+        return False
+
+    if _NUMERIC_DATE_SHAPE.fullmatch(text):
+        # Separators are a stronger signal than a decimal point. Keep compact
+        # YYYY and YYYYMMDD forms supported by pandas' flexible parser.
+        return any(separator in text for separator in "-/:") or (text.isdigit() and len(text) in {4, 8})
+
+    return bool(words.intersection(_DATE_WORDS)) and bool(_MONTH_DATE_SHAPE.fullmatch(text))
+
+
+@lru_cache(maxsize=32)
+def _casefold_tokens(tokens: frozenset[str]) -> frozenset[str]:
+    return frozenset(token.casefold() for token in tokens)
+
 
 def is_missing(value: Any, missing_tokens: Iterable[str]) -> bool:
     if value is None:
         return True
     if isinstance(value, float) and math.isnan(value):
         return True
-    return str(value).strip().casefold() in {token.casefold() for token in missing_tokens}
+    return str(value).strip().casefold() in _casefold_tokens(frozenset(missing_tokens))
 
 
 def is_null_value(value: Any, missing_tokens: Iterable[str]) -> bool:
@@ -40,7 +78,7 @@ def is_null_value(value: Any, missing_tokens: Iterable[str]) -> bool:
         return True
     if isinstance(value, float) and math.isnan(value):
         return True
-    tokens = {token.casefold() for token in missing_tokens if token != ""}
+    tokens = _casefold_tokens(frozenset(token for token in missing_tokens if token != ""))
     return str(value).strip().casefold() in tokens
 
 
@@ -84,7 +122,7 @@ def parse_number(value: Any) -> Optional[float]:
 
 def parse_date(value: Any) -> Optional[datetime]:
     text = clean_text(value).strip()
-    if not text:
+    if not _looks_like_date_text(text):
         return None
     for date_format in _DATE_FORMATS:
         try:
