@@ -48,7 +48,10 @@ export interface ColumnProfileSummary {
 
 export interface TableProfileSummary {
   tableName: string;
+  /** Full source-file row count. */
   rowCount: number;
+  /** Rows actually profiled; differs from rowCount in Fast Preview. */
+  profiledRowCount?: number;
   columnCount: number;
   columns: ColumnProfileSummary[];
 }
@@ -88,10 +91,13 @@ export interface ProfileAggregatedIssue {
   examples: string[];
   evidence: Record<string, unknown>;
   fingerprint: string;
+  estimated?: boolean;
 }
 
 export interface ProfileTablesResponse {
   status: "profiled";
+  profileMode?: "fast" | "full";
+  sampleSizePerTable?: number | null;
   tableCount: number;
   findingCount: number;
   tables: TableProfileSummary[];
@@ -137,6 +143,7 @@ function isTableProfileSummary(value: unknown): value is TableProfileSummary {
     typeof v.tableName === "string" &&
     typeof v.rowCount === "number" &&
     typeof v.columnCount === "number" &&
+    (v.profiledRowCount === undefined || typeof v.profiledRowCount === "number") &&
     Array.isArray(v.columns) &&
     v.columns.every(isColumnProfileSummary)
   );
@@ -160,7 +167,8 @@ function isProfileAggregatedIssue(value: unknown): value is ProfileAggregatedIss
     v.examples.every((example) => typeof example === "string") &&
     typeof v.evidence === "object" &&
     v.evidence !== null &&
-    typeof v.fingerprint === "string"
+    typeof v.fingerprint === "string" &&
+    (v.estimated === undefined || typeof v.estimated === "boolean")
   );
 }
 
@@ -190,6 +198,8 @@ function isProfileTablesResponse(value: unknown): value is ProfileTablesResponse
   const v = value as Record<string, unknown>;
   return (
     v.status === "profiled" &&
+    (v.profileMode === undefined || v.profileMode === "fast" || v.profileMode === "full") &&
+    (v.sampleSizePerTable === undefined || v.sampleSizePerTable === null || typeof v.sampleSizePerTable === "number") &&
     typeof v.tableCount === "number" &&
     typeof v.findingCount === "number" &&
     Array.isArray(v.tables) &&
@@ -284,7 +294,13 @@ export async function callProfilerStub(tableCount: number): Promise<ProfileStubR
  * content and returning the Phase 0-contract-shaped findings it produces.
  */
 export async function profileTables(
-  tables: { tableName: string; csvContent: string }[]
+  tables: { tableName: string; csvContent: string }[],
+  profileMode: "fast" | "full" = "full",
+  sampleSizePerTable = 20_000
 ): Promise<ProfileTablesResponse> {
-  return postToProfiler("/internal/profile/tables", { tables }, isProfileTablesResponse);
+  return postToProfiler(
+    "/internal/profile/tables",
+    { tables, profileMode, sampleSizePerTable },
+    isProfileTablesResponse
+  );
 }
