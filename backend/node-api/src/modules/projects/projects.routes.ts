@@ -7,6 +7,7 @@ import {
   getTables,
   getIssues,
   getVersionRelationships,
+  rebuildVersionRelationships,
   getVersionQualityScore,
 } from "./projects.controller.js";
 
@@ -20,6 +21,10 @@ projectsRouter.get("/projects/:projectId/versions/:versionId/issues", asyncHandl
 projectsRouter.get(
   "/projects/:projectId/versions/:versionId/relationships",
   asyncHandler(getVersionRelationships)
+);
+projectsRouter.post(
+  "/projects/:projectId/versions/:versionId/relationships/recompute",
+  asyncHandler(rebuildVersionRelationships)
 );
 projectsRouter.get(
   "/projects/:projectId/versions/:versionId/quality-score",
