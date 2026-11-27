@@ -135,7 +135,7 @@ services:
       db-privileges:
         condition: service_completed_successfully
       profiler:
-        condition: service_started
+        condition: service_healthy
     read_only: true
     tmpfs:
       - /tmp:size=256m,noexec,nosuid
