@@ -506,3 +506,32 @@ button.rel-map-table.child:hover,button.rel-map-table.child.focused{background:#
 .profile-mode-option:disabled{opacity:.65;cursor:wait}
 .version-preview-note{display:inline-flex;align-items:center;padding:5px 8px;border-radius:5px;background:#fff8e9;color:#9b7d3d;font-size:8px;font-weight:700}
 @media(max-width:600px){.profile-mode-options{grid-template-columns:1fr}.profile-mode-heading{align-items:flex-start;flex-direction:column;gap:3px}}
+
+/* Directed relationship network graph */
+.rel-heading-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rel-rebuild-notice{display:flex;align-items:flex-start;gap:8px;padding:11px 13px;border:1px solid #dcebd7;border-radius:8px;background:#f7fbf4;color:#557d4d;font-size:10px;line-height:1.5}
+.rel-rebuild-notice svg{flex:none;margin-top:1px}
+.rel-network-scroll{width:100%;max-width:100%;overflow:auto;border:1px solid #edf1ed;border-radius:8px;background-color:#fbfcfb;background-image:radial-gradient(#e5ece6 1px,transparent 1px);background-size:18px 18px}
+.rel-network-stage{position:relative;min-width:100%;min-height:240px}
+.rel-network-edges{position:absolute;inset:0;overflow:visible;pointer-events:none}
+.rel-network-edges marker path{fill:#89a77a}
+.rel-network-edge{fill:none;stroke:#9bb58f;stroke-width:2.1;opacity:.75}
+.rel-network-edge.selected{stroke:#4f8754;stroke-width:3.2;opacity:1}
+.rel-network-edge-label{position:absolute;z-index:2;max-width:176px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 7px;border:1px solid #e1eae0;border-radius:5px;background:#fff;color:#67815f;font:8px "SFMono-Regular",Consolas,monospace;box-shadow:0 2px 6px #1c34300a;cursor:pointer}
+.rel-network-edge-label:hover,.rel-network-edge-label.selected{border-color:#a7c79b;background:#f2f8ed;color:#3f7445}
+.rel-network-node{position:absolute;z-index:3;display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid #dfe9df;border-radius:9px;background:#fff;text-align:left;box-shadow:0 3px 12px #1e3f300b;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .15s}
+.rel-network-node:hover{transform:translateY(-2px);border-color:#a8c69e;box-shadow:0 6px 16px #1e3f3017}
+.rel-network-node.linked{border-left:3px solid #8eaf79}
+.rel-network-node.isolated{border-left:3px solid #c5d0c8}
+.rel-network-node:focus-visible,.rel-network-edge-label:focus-visible{outline:2px solid #78a766;outline-offset:2px}
+.rel-network-node-icon{width:32px;height:32px;flex:none;display:grid;place-items:center;border-radius:8px;background:#eef5e9;color:#6a915d}
+.rel-network-node-copy{min-width:0;display:flex;flex:1;flex-direction:column;gap:4px}
+.rel-network-node-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#355044;font:700 10px Manrope,sans-serif}
+.rel-network-node-copy small{color:#8d9a92;font-size:8px}
+.rel-network-node-copy em{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#719166;font-size:7px;font-style:normal}
+.rel-network-node.isolated .rel-network-node-copy em{color:#98a39c}
+.rel-network-node-count{min-width:20px;height:20px;display:grid;place-items:center;padding:0 5px;border-radius:6px;background:#eff5e9;color:#658456;font-size:8px;font-weight:800}
+.rel-network-node.isolated .rel-network-node-count{background:#f2f4f2;color:#9aa49d}
+.rel-network-empty{margin:10px 0 0;padding:10px 12px;border:1px dashed #dbe5dc;border-radius:7px;background:#fff;color:#87968d;font-size:9px;line-height:1.5}
+@media(max-width:1100px){.rel-explorer-layout{grid-template-columns:minmax(0,1fr)}.rel-evidence-panel{width:100%}}
+@media(max-width:700px){.rel-heading-actions{width:100%;justify-content:flex-start}.rel-network-scroll{max-height:620px}.rel-explorer-toolbar{align-items:stretch;flex-direction:column}.rel-table-view-grid{grid-template-columns:1fr}}
