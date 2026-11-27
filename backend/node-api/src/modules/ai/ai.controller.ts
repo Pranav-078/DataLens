@@ -251,7 +251,10 @@ async function prepareAssistantTurn(projectId: string, sessionId: string, questi
       "Choose quality_issues for data defect questions; schema for tables/columns; relationships for keys/joins; " +
       "quality_score for score questions; otherwise none. Conversation context: " +
       historyText.slice(-5000) + "\nCurrent question: " + question
-    ),
+    ).catch((error: unknown) => {
+      console.warn("[AI] Tool planner failed; continuing without a tool.", error);
+      return "";
+    }),
   ]);
 
   let toolChoice = "none";
