@@ -108,11 +108,16 @@ def name_matches(name: str, patterns: Sequence[str]) -> bool:
     )
 
 
+_NUMERIC_TEXT_SHAPE = re.compile(r"^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?$")
+
+
 def parse_number(value: Any) -> Optional[float]:
     text = clean_text(value).strip()
     if not text:
         return None
     text = text.replace(",", "")
+    if not _NUMERIC_TEXT_SHAPE.fullmatch(text):
+        return None
     try:
         number = float(text)
     except (TypeError, ValueError):
