@@ -71,20 +71,24 @@ services:
   db-privileges:
     image: postgres:16-bookworm
     restart: "no"
-    entrypoint: ["/bin/sh", "-ec"]
-    command: >-
-      psql "$$MIGRATION_DATABASE_URL"
-      -v app_user="$$APP_DB_USER"
-      -v app_password="$$APP_DB_PASSWORD"
-      -v migration_user="$$POSTGRES_USER"
-      -v db_name="$$POSTGRES_DB"
-      -f /scripts/grant-runtime.sql
+    entrypoint: ["psql"]
+    command:
+      - -v
+      - app_user=${APP_DB_USER:?Set APP_DB_USER}
+      - -v
+      - app_password=${APP_DB_PASSWORD:?Set APP_DB_PASSWORD}
+      - -v
+      - migration_user=${POSTGRES_USER:?Set POSTGRES_USER}
+      - -v
+      - db_name=${POSTGRES_DB:?Set POSTGRES_DB}
+      - -f
+      - /scripts/grant-runtime.sql
     environment:
-      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?Set MIGRATION_DATABASE_URL}
-      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
-      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
-      APP_DB_USER: ${APP_DB_USER:?Set APP_DB_USER}
-      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD}
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:?Set POSTGRES_DB}
     volumes:
       - ./deploy/postgres/grant-runtime.sql:/scripts/grant-runtime.sql:ro
     depends_on:
