@@ -39,8 +39,8 @@ _DATE_WORDS = frozenset({
     "sun", "sunday", "am", "pm", "utc", "gmt", "t", "z", "st", "nd", "rd", "th",
 })
 _DATE_WORD_PATTERN = re.compile(r"[A-Za-z]+")
-_NUMERIC_DATE_SHAPE = re.compile(r"^[0-9][0-9:/ .+\\-TtZz]*$")
-_MONTH_DATE_SHAPE = re.compile(r"^[A-Za-z0-9 ,./:+\\-]+$")
+_NUMERIC_DATE_SHAPE = re.compile(r"^[0-9][0-9:/ .+TtZz-]*$")
+_MONTH_DATE_SHAPE = re.compile(r"^[A-Za-z0-9 ,./:+-]+$")
 
 
 def _looks_like_date_text(text: str) -> bool:
