@@ -28,7 +28,7 @@ Use one value for `AUTH_COOKIE_SECRET`, another for each database password. URL-
 Set:
 
 - `PUBLIC_ORIGIN` to the exact browser-facing HTTPS origin, without a path or trailing slash, such as `https://datalens.example.com`.
-- `TRUST_PROXY_HOPS` to the actual number of trusted reverse proxies seen by the API. It is `1` when only the bundled Nginx container is in front of the API; set it to the actual chain length when a load balancer/CDN is added.
+- `TRUST_PROXY_HOPS` to the actual number of trusted reverse proxies seen by the API. The default example is `2` for an HTTPS ingress/load balancer forwarding to the bundled Nginx container, which then forwards to the API. Add another hop for each trusted CDN/load-balancer proxy in front, and configure those proxies to overwrite the forwarded headers.
 - `HTTP_BIND_ADDRESS=127.0.0.1` so the bundled HTTP entry point is not directly reachable from the public network. The host TLS proxy should connect to `127.0.0.1:8080`.
 - `AUTH_ALLOW_REGISTRATION=false` for normal operation. Account registration has no email-verification flow in this release. For initial private onboarding only, enable registration temporarily, create the required accounts, then disable it and redeploy.
 
