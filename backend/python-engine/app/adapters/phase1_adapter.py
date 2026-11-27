@@ -334,12 +334,13 @@ def aggregate_profile_result(
             # Fast Preview reports a full-table estimate derived from the
             # sampled affected-row rate. It never presents sample counts as
             # exact full-data counts.
+            sample_affected_rate = unique_row_count / profiled_rows
             affected_percentage = math.floor(
-                (unique_row_count / profiled_rows) * 100 * 1000 + 0.5
+                sample_affected_rate * 100 * 1000 + 0.5
             ) / 1000
             affected_rows = min(
                 total_rows,
-                math.floor((affected_percentage / 100) * total_rows + 0.5),
+                math.floor(sample_affected_rate * total_rows + 0.5),
             )
             if unique_row_count > 0 and total_rows > 0:
                 affected_rows = max(1, affected_rows)
