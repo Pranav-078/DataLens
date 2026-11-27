@@ -12,6 +12,10 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   API_PORT: z.coerce.number().int().positive().default(8000),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
+  // Public browser origin used to reject cross-site state-changing requests.
+  PUBLIC_ORIGIN: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  // Number of trusted reverse-proxy hops in front of the API (for client IP and secure cookies).
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
 
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   STORAGE_ROOT: z.string().min(1, "STORAGE_ROOT is required"),
@@ -52,6 +56,14 @@ const envSchema = z.object({
 }).superRefine((value, context) => {
   if (value.NODE_ENV === "production" && !value.AUTH_ENABLED) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["AUTH_ENABLED"], message: "Set AUTH_ENABLED=true in production." });
+  }
+  if (value.NODE_ENV === "production") {
+    if (!value.PUBLIC_ORIGIN || new URL(value.PUBLIC_ORIGIN).protocol !== "https:") {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["PUBLIC_ORIGIN"], message: "Set PUBLIC_ORIGIN to the exact HTTPS origin used by the browser." });
+    }
+    if (value.TRUST_PROXY_HOPS < 1) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["TRUST_PROXY_HOPS"], message: "Set TRUST_PROXY_HOPS to the actual number of trusted reverse proxies." });
+    }
   }
   if (value.AUTH_ENABLED) {
     // User registration is the primary authentication flow. Optional legacy
