@@ -278,7 +278,7 @@ jobs:
           test "$db_privileges" = "t"
 
           # Produce a coordinated database + file-volume backup and verify it.
-          BACKUP_ROOT=/tmp/datalens-backups ENV_FILE=.env.production.example ./scripts/backup-production.sh
+          BACKUP_ROOT=/tmp/datalens-backups ENV_FILE=.env.production.example bash ./scripts/backup-production.sh
           backup_dir="$(find /tmp/datalens-backups -mindepth 1 -maxdepth 1 -type d -name 'datalens-*' -print -quit)"
           test -n "$backup_dir"
           test -s "$backup_dir/database.dump"
