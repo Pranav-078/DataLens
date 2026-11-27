@@ -179,7 +179,11 @@ class TestAggregateProfileResult:
         assert issue["severity"] == "high"
         assert issue["examples"] == [f"customers:{i}" for i in range(1, 11)]
         assert issue["evidence"]["findingCountInGroup"] == 20
-        assert "row_indices" not in str(issue["evidence"])
+        assert issue["evidence"]["sampleFindingEvidence"]["phase1_row_reference"] == {
+            "kind": "row_indices",
+            "referenced_row_count": 10,
+        }
+        assert "row_indices" not in issue["evidence"]["sampleFindingEvidence"]["phase1_row_reference"].values()
         assert issue["fingerprint"]
 
     def test_table_level_issue_counts_the_full_table(self):
