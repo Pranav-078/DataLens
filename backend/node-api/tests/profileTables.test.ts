@@ -40,15 +40,22 @@ describe("profileTables — success", () => {
           tableCount: 1,
           findingCount: 1,
           tables: [],
-          findings: [
+          findings: [],
+          aggregatedIssues: [
             {
-              issue_type: "empty_string",
+              tableName: "customers",
+              columnName: "email",
+              issueType: "empty_string",
               dimension: "completeness",
-              table: "customers",
-              row_uid: "customers:1",
-              column: "email",
               severity: "medium",
-              evidence: {},
+              title: "empty string in customers.email",
+              description: "1 of 1 row(s) affected by empty string.",
+              affectedRows: 1,
+              totalRows: 1,
+              affectedPercentage: 100,
+              examples: ["customers:1"],
+              evidence: { findingCountInGroup: 1 },
+              fingerprint: "abc123",
             },
           ],
           relationships: [],
@@ -58,7 +65,11 @@ describe("profileTables — success", () => {
     const profileTables = await loadClientPointedAt(baseUrl);
     const result = await profileTables(sampleTables);
     expect(result.findingCount).toBe(1);
-    expect(result.findings[0]).toMatchObject({ table: "customers", row_uid: "customers:1" });
+    expect(result.aggregatedIssues?.[0]).toMatchObject({
+      tableName: "customers",
+      affectedRows: 1,
+      examples: ["customers:1"],
+    });
   });
 
   it("accepts an empty findings array as a valid, non-error result", async () => {
