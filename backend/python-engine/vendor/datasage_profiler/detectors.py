@@ -19,7 +19,6 @@ from .models import ColumnProfile, Issue
 from .utils import (
     compact_key,
     date_format,
-    infer_type,
     is_missing,
     levenshtein_distance,
     name_matches,
@@ -239,15 +238,19 @@ class TypeQualityDetector:
             values = list(_values_with_rows(series, config))
             if not values:
                 continue
-            numeric_values = [(row, value) for row, value in values if parse_number(value) is not None]
-            date_values = [(row, value) for row, value in values if parse_date(value) is not None]
+            profile = _profile_for(context, name)
             numeric_hint = name_matches(name, config.numeric_name_patterns)
             date_hint = name_matches(name, config.date_name_patterns)
-            inferred = infer_type(
-                series,
-                config.missing_tokens,
-                numeric_name_hint=numeric_hint,
-                date_name_hint=date_hint,
+            # Dataset profiling has already inferred this column's type.
+            # Re-running infer_type here scans and reparses every cell again.
+            inferred = profile.inferred_type
+            numeric_values = [(row, value) for row, value in values if parse_number(value) is not None]
+            # Date parsing is expensive; ordinary text and identifier columns
+            # do not need a second date-parser pass.
+            date_values = (
+                [(row, value) for row, value in values if parse_date(value) is not None]
+                if date_hint or inferred == "date"
+                else []
             )
             if (numeric_hint or inferred in {"integer", "float"}) and len(numeric_values) >= 3:
                 invalid = [(row, value) for row, value in values if parse_number(value) is None]
@@ -344,7 +347,11 @@ class TypeQualityDetector:
                             confidence=0.95 if date_hint else 0.85,
                         )
                     )
-                formats = Counter(date_format(value) for _, value in date_values if date_format(value))
+                formats = Counter()
+                for _, value in date_values:
+                    detected_format = date_format(value)
+                    if detected_format:
+                        formats[detected_format] += 1
                 if len(formats) > 1:
                     findings.append(
                         _issue(
