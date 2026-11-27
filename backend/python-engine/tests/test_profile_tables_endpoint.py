@@ -283,8 +283,8 @@ def test_fast_preview_samples_rows_and_returns_source_and_profiled_counts():
 
 def test_fast_preview_relationship_matching_uses_full_source_values_not_independent_samples():
     customers_csv = _customers_csv(6000)
-    orders_rows = "\\n".join(f"O{i:05d},C{i % 6000:03d}" for i in range(12000))
-    orders_csv = f"order_id,customer_id\\n{orders_rows}\\n"
+    orders_rows = chr(10).join(f"O{i:05d},C{i % 6000:03d}" for i in range(12000))
+    orders_csv = "order_id,customer_id" + chr(10) + orders_rows + chr(10)
 
     resp = client.post(
         "/internal/profile/tables",
@@ -316,8 +316,8 @@ def test_fast_preview_relationship_matching_uses_full_source_values_not_independ
 
 def test_relationship_rebuild_endpoint_uses_saved_csv_content_without_quality_findings():
     customers_csv = _customers_csv(6000)
-    orders_rows = "\\n".join(f"O{i:05d},C{i % 6000:03d}" for i in range(12000))
-    orders_csv = f"order_id,customer_id\\n{orders_rows}\\n"
+    orders_rows = chr(10).join(f"O{i:05d},C{i % 6000:03d}" for i in range(12000))
+    orders_csv = "order_id,customer_id" + chr(10) + orders_rows + chr(10)
 
     resp = client.post(
         "/internal/profile/relationships",
