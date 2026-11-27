@@ -272,6 +272,110 @@ export async function persistProfilingOutcome(
 }
 
 /**
+ * Atomically replaces a version's inferred relationships and refreshes
+ * its referential-integrity score. The saved CSV files are read and inferred
+ * by the controller before this persistence-only operation.
+ */
+export async function replaceVersionRelationships(
+  db: ProfilingDb,
+  params: { versionId: string; relationships: ProfileRelationship[] }
+): Promise<void> {
+  await db.$transaction(async (tx) => {
+    const tables = await tx.datasetTable.findMany({ where: { versionId: params.versionId } });
+    const tableIdByName = new Map(tables.map((table) => [table.tableName, table.id]));
+    const tableIds = tables.map((table) => table.id);
+    const columns = tableIds.length
+      ? await tx.datasetColumn.findMany({ where: { tableId: { in: tableIds } } })
+      : [];
+    const tableNameById = new Map(tables.map((table) => [table.id, table.tableName]));
+    const columnNameById = new Map(columns.map((column) => [column.id, column.columnName]));
+    const columnIdByTableAndName = new Map<string, string>();
+    for (const column of columns) {
+      const tableName = tableNameById.get(column.tableId);
+      if (tableName) columnIdByTableAndName.set(`${tableName}\u0000${column.columnName}`, column.id);
+    }
+
+    await tx.inferredRelationship.deleteMany({ where: { versionId: params.versionId } });
+    for (const rel of params.relationships) {
+      const parentTableId = tableIdByName.get(rel.parent_table);
+      const childTableId = tableIdByName.get(rel.child_table);
+      const parentColumnId = columnIdByTableAndName.get(`${rel.parent_table}\u0000${rel.parent_column}`);
+      const childColumnId = columnIdByTableAndName.get(`${rel.child_table}\u0000${rel.child_column}`);
+      if (!parentTableId || !childTableId || !parentColumnId || !childColumnId) {
+        throw new Error(
+          `Cannot persist inferred relationship ${rel.parent_table}.${rel.parent_column} -> ${rel.child_table}.${rel.child_column}: table or column metadata is missing`
+        );
+      }
+      const input: CreateInferredRelationshipInput = {
+        versionId: params.versionId,
+        parentTableId,
+        parentColumnId,
+        childTableId,
+        childColumnId,
+        confidence: rel.confidence,
+        confidenceBand: rel.confidence_band,
+        status: rel.status,
+        valueOverlap: rel.value_overlap,
+        orphanCount: rel.orphan_count,
+        orphanPercentage: rel.orphan_percentage,
+        orphanExamples: rel.orphan_examples,
+        evidence: rel.evidence,
+      };
+      await tx.inferredRelationship.create({ data: input });
+    }
+
+    const issueCount = await tx.qualityIssue.count({ where: { versionId: params.versionId } });
+    const issueRows = issueCount > 0
+      ? await tx.qualityIssue.findMany({
+          where: { versionId: params.versionId },
+          skip: 0,
+          take: issueCount,
+          orderBy: { createdAt: "desc" },
+        })
+      : [];
+    const issues: AggregatedQualityIssue[] = issueRows.map((issue) => ({
+      tableName: issue.tableId ? tableNameById.get(issue.tableId) ?? "" : "",
+      columnName: issue.columnId ? columnNameById.get(issue.columnId) ?? null : null,
+      issueType: issue.issueType,
+      dimension: issue.dimension,
+      severity: issue.severity as AggregatedQualityIssue["severity"],
+      title: issue.title,
+      description: issue.description,
+      affectedRows: issue.affectedRows,
+      totalRows: issue.totalRows,
+      affectedPercentage: issue.affectedPercentage,
+      examples: issue.examples,
+      evidence: issue.evidence,
+      fingerprint: issue.fingerprint,
+    }));
+    const score = computeQualityScore(issues, params.relationships);
+    const scoreData = {
+      overallScore: score.overallScore,
+      completeness: score.completeness,
+      uniqueness: score.uniqueness,
+      validity: score.validity,
+      consistency: score.consistency,
+      referentialIntegrity: score.referentialIntegrity,
+      applicableDimensions: score.applicableDimensions,
+      weightsUsed: score.weightsUsed,
+      capApplied: score.capApplied,
+      capReason: score.capReason,
+      calculationBreakdown: score.calculationBreakdown,
+      criticalCount: score.criticalCount,
+      highCount: score.highCount,
+      mediumCount: score.mediumCount,
+      lowCount: score.lowCount,
+    };
+    const existingScore = await tx.qualityScore.findUnique({ where: { versionId: params.versionId } });
+    if (existingScore) {
+      await tx.qualityScore.update({ where: { versionId: params.versionId }, data: scoreData });
+    } else {
+      await tx.qualityScore.create({ data: { versionId: params.versionId, ...scoreData } });
+    }
+  });
+}
+
+/**
  * Marks a version/job as failed. Called from the service's catch block
  * after something in the pipeline threw — deliberately its own small
  * transaction (version + job move to failed together), separate from
