@@ -410,8 +410,8 @@ class StringQualityDetector:
                                 confidence=1.0,
                             )
                         )
-                    if "\\ufffd" in value or any(
-                        ord(char) < 32 and char not in "\\t\\n\\r" for char in value
+                    if "\ufffd" in value or any(
+                        ord(char) < 32 and char not in "\t\n\r" for char in value
                     ):
                         findings.append(
                             _issue(
