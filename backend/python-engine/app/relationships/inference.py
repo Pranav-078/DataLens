@@ -219,7 +219,7 @@ def _count_non_missing_values(series: pd.Series) -> Counter[str]:
     return counts
 
 
-def _compute_containment(
+def _compute_containment_cached(
     parent_values: frozenset[str],
     child_counts: Counter[str],
 ) -> _ContainmentResult:
@@ -245,6 +245,17 @@ def _compute_containment(
         orphan_percentage=orphan_percentage,
         orphan_examples=orphan_examples,
     )
+
+def _compute_containment(parent_series: pd.Series, child_series: pd.Series) -> _ContainmentResult:
+    """Backward-compatible Series interface used by the profiler unit tests.
+
+    Production relationship inference uses the cached variant below so
+    each column is scanned at most once per request.
+    """
+    parent_counts = _count_non_missing_values(parent_series)
+    child_counts = _count_non_missing_values(child_series)
+    return _compute_containment_cached(frozenset(parent_counts), child_counts)
+
 
 def _column_profiles_by_table(table_profiles: list[DatasetProfile]) -> dict[str, dict[str, ColumnProfile]]:
     return {dp.table: {cp.name: cp for cp in dp.columns} for dp in table_profiles}
@@ -385,7 +396,7 @@ def _evaluate_pair(
     child_counts: Counter[str],
 ) -> Optional[RelationshipCandidate]:
     # Stage 1 — cheap hard gates first, before touching any actual values.
-    containment_result = _compute_containment(parent_values, child_counts)
+    containment_result = _compute_containment_cached(parent_values, child_counts)
 
     if containment_result.containment < MIN_CONTAINMENT:
         return None
