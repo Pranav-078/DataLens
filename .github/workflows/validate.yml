@@ -116,7 +116,7 @@ jobs:
       - name: Check out latest release branch after lockfile refresh
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.event_name == 'push' && github.ref_name || github.sha }}
       - name: Validate production Compose configuration
         run: docker compose --env-file .env.production.example -f docker-compose.production.yml config --quiet
       - name: Build production API, migration, profiler and frontend images
@@ -153,7 +153,6 @@ jobs:
 
   lockfile-refresh:
     name: Commit verified npm lockfiles
-    if: github.event_name == 'push'
     needs: [backend, frontend]
     runs-on: ubuntu-latest
     permissions:
@@ -174,6 +173,7 @@ jobs:
           name: frontend-package-lock
           path: frontend/
       - name: Commit verified lockfiles when changed
+        if: github.event_name == 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
