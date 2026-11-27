@@ -74,7 +74,7 @@ export async function uploadKnowledgeDocument(req: Request, res: Response) {
       const vectorLiteral = "[" + vector.join(",") + "]";
       await prisma.$executeRawUnsafe(
         "INSERT INTO document_chunks (id, document_id, chunk_index, content, token_count, page_number, section_heading, embedding) " +
-        "VALUES (gen_random_uuid(), $1::uuid, $2, $3, $4, $5, $6, $7::vector)",
+        "VALUES (gen_random_uuid()::text, $1::text, $2, $3, $4, $5, $6, $7::vector)",
         document.id,
         chunk.chunkIndex,
         chunk.content,
@@ -161,7 +161,7 @@ async function retrieveContext(projectId: string, question: string, limit = conf
       "SELECT dc.id, dc.document_id, d.filename, dc.chunk_index, dc.content, dc.page_number, dc.section_heading, " +
       "1 - (dc.embedding <=> $2::vector) AS similarity, NULL::double precision AS lexical_score " +
       "FROM document_chunks dc JOIN documents d ON d.id = dc.document_id " +
-      "WHERE d.project_id = $1::uuid AND d.status = 'ready' AND dc.embedding IS NOT NULL " +
+      "WHERE d.project_id = $1::text AND d.status = 'ready' AND dc.embedding IS NOT NULL " +
       "ORDER BY dc.embedding <=> $2::vector LIMIT $3::int",
       projectId, vectorLiteral, config.RAG_RETRIEVAL_CANDIDATES
     ),
@@ -171,7 +171,7 @@ async function retrieveContext(projectId: string, question: string, limit = conf
       "ts_rank_cd(to_tsvector('simple', coalesce(dc.section_heading, '') || ' ' || dc.content), " +
       "websearch_to_tsquery('simple', $2))::double precision AS lexical_score " +
       "FROM document_chunks dc JOIN documents d ON d.id = dc.document_id " +
-      "WHERE d.project_id = $1::uuid AND d.status = 'ready' " +
+      "WHERE d.project_id = $1::text AND d.status = 'ready' " +
       "AND to_tsvector('simple', coalesce(dc.section_heading, '') || ' ' || dc.content) @@ websearch_to_tsquery('simple', $2) " +
       "ORDER BY lexical_score DESC LIMIT $3::int",
       projectId, question, config.RAG_RETRIEVAL_CANDIDATES
@@ -406,7 +406,7 @@ export async function getRagStatus(req: Request, res: Response) {
     prisma.document.count({ where: { projectId, status: "failed" } }),
     prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
       "SELECT count(dc.id)::bigint AS count FROM document_chunks dc " +
-      "JOIN documents d ON d.id = dc.document_id WHERE d.project_id = $1::uuid AND d.status = 'ready'",
+      "JOIN documents d ON d.id = dc.document_id WHERE d.project_id = $1::text AND d.status = 'ready'",
       projectId
     ),
   ]);
