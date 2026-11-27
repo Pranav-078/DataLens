@@ -20,8 +20,10 @@ export const uploadFiles = (files, projectId) => {
   const body = new FormData();
   files.forEach(file => body.append("files", file));
   if (projectId) body.append("projectId", projectId);
+  // Profiling can take several minutes for large related CSV datasets.
+  // Keep the longer timeout scoped to ingestion, not ordinary API requests.
   // Let the browser set the multipart boundary automatically.
-  return api.post("/uploads/validate", body);
+  return api.post("/uploads/validate", body, { timeout: 300000 });
 };
 
 export const getVersionTables = (p, v) => api.get("/projects/" + p + "/versions/" + v + "/tables");
