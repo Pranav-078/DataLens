@@ -1,7 +1,7 @@
 import { config } from "../../config.js";
 
 const API_ROOT = "https://generativelanguage.googleapis.com/v1beta";
-const CHAT_MODEL = "gemini-2.5-flash";
+const CHAT_MODEL = "gemini-3.8-flash";
 const EMBEDDING_MODEL = "gemini-embedding-001";
 
 async function geminiRequest(path: string, body: unknown): Promise<any> {
