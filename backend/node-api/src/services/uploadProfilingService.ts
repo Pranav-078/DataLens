@@ -89,7 +89,11 @@ export async function processUpload(
     const profilingResult = await profileTables(tablePayloads);
 
     const tableRowCounts = Object.fromEntries(input.validatedFiles.map((f) => [f.tableName, f.rowCount]));
-    const aggregatedIssues = groupFindingsIntoQualityIssues(profilingResult.findings, tableRowCounts);
+    // New Python profiler responses already contain exact, compact issue
+    // aggregates. Fall back to row-level aggregation for legacy responses.
+    const aggregatedIssues = profilingResult.aggregatedIssues !== undefined
+      ? profilingResult.aggregatedIssues
+      : groupFindingsIntoQualityIssues(profilingResult.findings, tableRowCounts);
 
     await persistProfilingOutcome(db, {
       versionId,
