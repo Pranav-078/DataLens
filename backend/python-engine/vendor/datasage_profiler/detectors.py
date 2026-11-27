@@ -382,10 +382,52 @@ class StringQualityDetector:
         for column in context.frame.columns:
             name = str(column)
             series = context.frame[column]
-            empty_rows = [
-                int(row) for row, value in series.items()
-                if isinstance(value, str) and value.strip() == ""
-            ]
+            empty_rows: List[int] = []
+            casing_groups: Dict[str, List[tuple[int, Any]]] = defaultdict(list)
+
+            # One pass per column replaces separate scans for empty values,
+            # whitespace/encoding findings, and casing variants.
+            for row, value in series.items():
+                row_index = int(row)
+                if isinstance(value, str) and value.strip() == "":
+                    empty_rows.append(row_index)
+
+                if is_missing(value, config.missing_tokens):
+                    continue
+
+                if isinstance(value, str):
+                    if value != value.strip():
+                        findings.append(
+                            _issue(
+                                issue_type="leading_trailing_whitespace",
+                                severity="warning",
+                                table=context.table,
+                                column=name,
+                                row_reference={"row_index": row_index},
+                                observed_value=value,
+                                description=f"Value in '{name}' has leading or trailing whitespace.",
+                                detector=self.name,
+                                confidence=1.0,
+                            )
+                        )
+                    if "\\ufffd" in value or any(
+                        ord(char) < 32 and char not in "\\t\\n\\r" for char in value
+                    ):
+                        findings.append(
+                            _issue(
+                                issue_type="encoding_edge_case",
+                                severity="warning",
+                                table=context.table,
+                                column=name,
+                                row_reference={"row_index": row_index},
+                                observed_value=value,
+                                description=f"Value in '{name}' contains a replacement or control character.",
+                                detector=self.name,
+                                confidence=0.95,
+                            )
+                        )
+                    casing_groups[normalized_key(value)].append((row_index, value))
+
             if empty_rows:
                 findings.append(
                     _issue(
@@ -401,39 +443,7 @@ class StringQualityDetector:
                         details={"count": len(empty_rows)},
                     )
                 )
-            for row, value in _values_with_rows(series, config):
-                if isinstance(value, str) and value != value.strip():
-                    findings.append(
-                        _issue(
-                            issue_type="leading_trailing_whitespace",
-                            severity="warning",
-                            table=context.table,
-                            column=name,
-                            row_reference={"row_index": row},
-                            observed_value=value,
-                            description=f"Value in '{name}' has leading or trailing whitespace.",
-                            detector=self.name,
-                            confidence=1.0,
-                        )
-                    )
-                if isinstance(value, str) and ("\ufffd" in value or any(ord(char) < 32 and char not in "\t\n\r" for char in value)):
-                    findings.append(
-                        _issue(
-                            issue_type="encoding_edge_case",
-                            severity="warning",
-                            table=context.table,
-                            column=name,
-                            row_reference={"row_index": row},
-                            observed_value=value,
-                            description=f"Value in '{name}' contains a replacement or control character.",
-                            detector=self.name,
-                            confidence=0.95,
-                        )
-                    )
-            casing_groups: Dict[str, List[tuple[int, Any]]] = defaultdict(list)
-            for row, value in _values_with_rows(series, config):
-                if isinstance(value, str):
-                    casing_groups[normalized_key(value)].append((row, value))
+
             for normalized, entries in sorted(casing_groups.items()):
                 variants = {str(value) for _, value in entries}
                 if normalized and len(variants) > 1:
@@ -452,7 +462,6 @@ class StringQualityDetector:
                         )
                     )
         return findings
-
 
 class RequiredFieldDetector:
     name = "required_field_detector"
