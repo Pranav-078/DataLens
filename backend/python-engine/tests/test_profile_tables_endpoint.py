@@ -88,7 +88,13 @@ def test_profile_tables_synthesizes_row_uid_as_table_colon_1_based_row_number():
         },
     )
     body = resp.json()
-    row_uids = {f["row_uid"] for f in body["findings"]}
+    # The endpoint now returns compact issue summaries rather than
+    # expanding every affected row into an HTTP Finding object.
+    row_uids = {
+        row_uid
+        for issue in body["aggregatedIssues"]
+        for row_uid in issue["examples"]
+    }
     assert "orders:2" in row_uids
 
 
