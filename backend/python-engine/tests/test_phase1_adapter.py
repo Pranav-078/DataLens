@@ -242,3 +242,28 @@ class TestAggregateProfileResult:
         assert issue["evidence"]["analysisMode"] == "fast"
         assert issue["evidence"]["profiledRows"] == 4
         assert issue["evidence"]["sourceRows"] == 20
+
+    def test_fast_mode_keeps_counts_exact_when_table_fits_inside_sample(self):
+        frame = pd.DataFrame({"phone": ["bad", "ok", "bad", "ok"]})
+        result = ProfileResult(
+            version="test",
+            tables=[DatasetProfile("customers", 4, 1, ["phone"], [])],
+            issues=[
+                make_issue(
+                    issue_type="invalid_numeric",
+                    row_reference={"row_indices": [0, 2]},
+                ),
+            ],
+        )
+
+        aggregated, _ = aggregate_profile_result(
+            result,
+            {"customers": frame},
+            source_row_counts={"customers": 4},
+            estimated=True,
+        )
+
+        assert aggregated[0]["estimated"] is False
+        assert aggregated[0]["affectedRows"] == 2
+        assert aggregated[0]["totalRows"] == 4
+        assert aggregated[0]["affectedPercentage"] == 50.0
