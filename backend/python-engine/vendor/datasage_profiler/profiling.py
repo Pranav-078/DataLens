@@ -19,10 +19,14 @@ def build_dataset_profile(table: str, frame: pd.DataFrame, config: ProfilerConfi
     columns: List[ColumnProfile] = []
     for name in frame.columns:
         series = frame[name]
-        null_count = sum(is_null_value(value, config.missing_tokens) for value in series.tolist())
-        empty_count = sum(_is_empty_string(value) for value in series.tolist())
+        # Materialize the pandas column once; the old implementation called
+        # series.tolist() separately for each statistic, allocating several
+        # full-size Python lists per column on large uploads.
+        values = series.tolist()
+        null_count = sum(is_null_value(value, config.missing_tokens) for value in values)
+        empty_count = sum(_is_empty_string(value) for value in values)
         non_null_values = [
-            value for value in series.tolist()
+            value for value in values
             if not is_null_value(value, config.missing_tokens) and not _is_empty_string(value)
         ]
         unique_count = len({str(value) for value in non_null_values})
