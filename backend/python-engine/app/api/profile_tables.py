@@ -43,7 +43,7 @@ class TablePayload(BaseModel):
 class ProfileTablesRequest(BaseModel):
     tables: list[TablePayload]
     profileMode: Literal["fast", "full"] = "full"
-    sampleSizePerTable: int = Field(default=20_000, ge=1_000, le=50_000)
+    sampleSizePerTable: int = Field(default=5_000, ge=1_000, le=50_000)
 
 
 class FindingPayload(BaseModel):
