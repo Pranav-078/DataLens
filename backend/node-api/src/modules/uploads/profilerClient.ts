@@ -74,12 +74,31 @@ export interface ProfileRelationship {
   evidence: Record<string, unknown>;
 }
 
+export interface ProfileAggregatedIssue {
+  tableName: string;
+  columnName: string | null;
+  issueType: string;
+  dimension: string;
+  severity: "critical" | "high" | "medium" | "low";
+  title: string;
+  description: string;
+  affectedRows: number;
+  totalRows: number;
+  affectedPercentage: number;
+  examples: string[];
+  evidence: Record<string, unknown>;
+  fingerprint: string;
+}
+
 export interface ProfileTablesResponse {
   status: "profiled";
   tableCount: number;
   findingCount: number;
   tables: TableProfileSummary[];
+  /** Legacy row-level payload. New profiler responses leave this empty. */
   findings: ProfileFinding[];
+  /** Compact, exact full-dataset issue groups. Optional for old test fixtures/clients. */
+  aggregatedIssues?: ProfileAggregatedIssue[];
   relationships: ProfileRelationship[];
 }
 
@@ -123,6 +142,28 @@ function isTableProfileSummary(value: unknown): value is TableProfileSummary {
   );
 }
 
+function isProfileAggregatedIssue(value: unknown): value is ProfileAggregatedIssue {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.tableName === "string" &&
+    (v.columnName === null || typeof v.columnName === "string") &&
+    typeof v.issueType === "string" &&
+    typeof v.dimension === "string" &&
+    typeof v.severity === "string" &&
+    typeof v.title === "string" &&
+    typeof v.description === "string" &&
+    typeof v.affectedRows === "number" &&
+    typeof v.totalRows === "number" &&
+    typeof v.affectedPercentage === "number" &&
+    Array.isArray(v.examples) &&
+    v.examples.every((example) => typeof example === "string") &&
+    typeof v.evidence === "object" &&
+    v.evidence !== null &&
+    typeof v.fingerprint === "string"
+  );
+}
+
 function isProfileRelationship(value: unknown): value is ProfileRelationship {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -155,6 +196,8 @@ function isProfileTablesResponse(value: unknown): value is ProfileTablesResponse
     v.tables.every(isTableProfileSummary) &&
     Array.isArray(v.findings) &&
     v.findings.every(isProfileFinding) &&
+    (v.aggregatedIssues === undefined ||
+      (Array.isArray(v.aggregatedIssues) && v.aggregatedIssues.every(isProfileAggregatedIssue))) &&
     Array.isArray(v.relationships) &&
     v.relationships.every(isProfileRelationship)
   );
