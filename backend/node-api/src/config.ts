@@ -13,7 +13,10 @@ const envSchema = z.object({
   API_PORT: z.coerce.number().int().positive().default(8000),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   // Public browser origin used to reject cross-site state-changing requests.
-  PUBLIC_ORIGIN: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  PUBLIC_ORIGIN: z.preprocess(
+    emptyToUndefined,
+    z.string().url().refine(value => new URL(value).origin === value, "PUBLIC_ORIGIN must contain only scheme, host and optional port").optional()
+  ),
   // Number of trusted reverse-proxy hops in front of the API (for client IP and secure cookies).
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
 
