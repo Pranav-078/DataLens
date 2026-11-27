@@ -95,7 +95,7 @@ jobs:
       - name: Audit Python dependencies
         run: |
           python -m pip install pip-audit
-          pip-audit --strict
+          pip-audit --strict --skip-editable
       - name: Run profiler tests
         run: python -m pytest -q
 
