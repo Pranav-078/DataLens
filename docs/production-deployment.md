@@ -101,6 +101,55 @@ The script validates the production Compose configuration, stops the frontend an
 
 The generated directory contains confidential dataset contents and a database dump. Restrict permissions, encrypt it before off-host transfer, store it outside the production host, and apply an access-controlled retention policy. Test restoration in an isolated recovery environment on a regular schedule; do not test restore over the live production volumes.
 
+### Isolated restore drill
+
+Run this only on a recovery host or in a separate recovery environment. The example uses a different Compose project name and therefore creates separate database and storage volumes. Never substitute the live production Compose project name when testing a restore.
+
+1. Copy one complete backup directory to the recovery host and verify its checksums:
+
+```bash
+cd /path/to/DataLens
+BACKUP_DIR=/var/backups/datalens/datalens-YYYYMMDDTHHMMSSZ
+(cd "$BACKUP_DIR" && sha256sum --check SHA256SUMS)
+```
+
+2. Copy the production environment file to the recovery host, supply the intended recovery secrets, and start only a fresh recovery database:
+
+```bash
+docker compose -p datalens-recovery --env-file .env.production -f docker-compose.production.yml up -d db
+```
+
+3. Restore the database dump into that fresh recovery database. This command replaces objects in the recovery database; never point it at the live production project:
+
+```bash
+docker compose -p datalens-recovery --env-file .env.production -f docker-compose.production.yml exec -T db sh -ec 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --exit-on-error' < "$BACKUP_DIR/database.dump"
+```
+
+4. Restore uploaded files into the new recovery storage volume (which is empty on first use):
+
+```bash
+docker run --rm \
+  --mount type=volume,src=datalens-recovery_storage_data,dst=/target \
+  --mount "type=bind,src=$BACKUP_DIR,dst=/backup,readonly" \
+  alpine:3.21 sh -ec 'tar -xzf /backup/storage.tar.gz -C /target'
+```
+
+5. Reapply the runtime database role grants and start the complete recovery stack. Prisma migrations are already recorded in the restored database; the migration job should report that there is nothing new to apply:
+
+```bash
+docker compose -p datalens-recovery --env-file .env.production -f docker-compose.production.yml run --rm db-privileges
+docker compose -p datalens-recovery --env-file .env.production -f docker-compose.production.yml up -d
+docker compose -p datalens-recovery --env-file .env.production -f docker-compose.production.yml ps
+```
+
+6. Verify readiness on the recovery host (adjust the port if it differs from the recovery environment):
+
+```bash
+curl -fsS http://127.0.0.1:8080/api/health/ready
+```
+
+The recovery project must remain isolated from public DNS and the live production network during the drill. Confirm that recent project versions, uploaded CSV files, relationships and user accounts are present before considering the backup procedure proven.
+
 Monitor API/profiler logs, database disk and memory, storage growth, CPU, health-check failures, upload/profiler duration, and Gemini errors/costs. Alert on repeated 5xx responses, repeated failed readiness checks, database space thresholds and failed backups.
 
 Use `docker compose ... pull` / rebuilds only as part of a reviewed release. Keep the previous image tags and backups for rollback. Database migrations must be backward-compatible with the previous API version before rolling back application containers.
