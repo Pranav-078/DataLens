@@ -170,6 +170,13 @@ export function createFakeDb() {
         findMany: vi.fn(async ({ where }: any) => {
           return relationships.filter((r) => r.versionId === where.versionId);
         }),
+        deleteMany: vi.fn(async ({ where }: any) => {
+          const before = relationships.length;
+          for (let index = relationships.length - 1; index >= 0; index -= 1) {
+            if (relationships[index]?.versionId === where.versionId) relationships.splice(index, 1);
+          }
+          return { count: before - relationships.length };
+        }),
       },
       qualityScore: {
         create: vi.fn(async ({ data }: any) => {
@@ -179,6 +186,12 @@ export function createFakeDb() {
         }),
         findUnique: vi.fn(async ({ where }: any) => {
           return qualityScores.find((s) => s.versionId === where.versionId) ?? null;
+        }),
+        update: vi.fn(async ({ where, data }: any) => {
+          const row = qualityScores.find((s) => s.versionId === where.versionId);
+          if (!row) throw new Error(`fake db: no quality score for version ${where.versionId}`);
+          Object.assign(row, data);
+          return row;
         }),
       },
       $transaction: vi.fn(async (fn: (tx: ProfilingDb) => Promise<unknown>) => fn(db)),
