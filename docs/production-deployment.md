@@ -15,12 +15,13 @@ This guide defines the production deployment path. It is intentionally separate 
 
 Copy `.env.production.example` to `.env.production` on the deployment host. Do not commit the real file.
 
-Generate secrets on the host:
+Generate URL-safe random secrets on the host:
 
 ```bash
-openssl rand -base64 48
-openssl rand -base64 32
+openssl rand -hex 32
 ```
+
+Use separate generated values for the cookie secret, migration password and runtime database password. Hex database passwords need no URL-encoding when inserted into the connection URLs.
 
 Use one value for `AUTH_COOKIE_SECRET`, another for each database password. URL-encode database passwords before placing them inside `MIGRATION_DATABASE_URL` and `APP_DATABASE_URL`. Do not reuse the database superuser password for the API runtime account.
 

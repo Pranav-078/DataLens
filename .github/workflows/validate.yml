@@ -33,8 +33,8 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: backend/node-api/package-lock.json
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies and regenerate lockfile
+        run: npm install
       - name: Report backend dependency advisories
         run: |
           npm audit --json > npm-audit.json || true
@@ -45,6 +45,11 @@ jobs:
         run: npm run build
       - name: Run backend tests
         run: npm test
+      - name: Upload regenerated backend lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-package-lock
+          path: backend/node-api/package-lock.json
 
   frontend:
     name: React production build
@@ -67,6 +72,11 @@ jobs:
           node -e "const a=require('./npm-audit.json'); for (const [name,v] of Object.entries(a.vulnerabilities||{})) console.log([v.severity,name,'range='+v.range,'direct='+v.isDirect,'fix='+JSON.stringify(v.fixAvailable),'via='+v.via.map(x=>typeof x==='string'?x:x.name).join(',')].join(' | ')); console.log('Totals:',JSON.stringify(a.metadata?.vulnerabilities||{}))"
       - name: Build frontend
         run: npm run build
+      - name: Upload regenerated frontend lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-package-lock
+          path: frontend/package-lock.json
 
 
   python-profiler:
