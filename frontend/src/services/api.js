@@ -16,10 +16,11 @@ export const checkApiReadiness = () => api.get("/health/ready");
 export const getProjectSummary = projectId => api.get("/projects/" + projectId);
 export const getProjectVersions = projectId => api.get("/projects/" + projectId + "/versions");
 
-export const uploadFiles = (files, projectId) => {
+export const uploadFiles = (files, projectId, profileMode = "full") => {
   const body = new FormData();
   files.forEach(file => body.append("files", file));
   if (projectId) body.append("projectId", projectId);
+  body.append("profileMode", profileMode);
   // Profiling can take several minutes for large related CSV datasets.
   // Keep the longer timeout scoped to ingestion, not ordinary API requests.
   // Let the browser set the multipart boundary automatically.
