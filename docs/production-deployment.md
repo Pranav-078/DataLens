@@ -94,7 +94,7 @@ Back up PostgreSQL and the `storage_data` volume on a schedule. A database backu
 From the repository root on the production host, run:
 
 ```bash
-BACKUP_ROOT=/var/backups/datalens ./scripts/backup-production.sh
+BACKUP_ROOT=/var/backups/datalens bash ./scripts/backup-production.sh
 ```
 
 The script validates the production Compose configuration, stops the frontend and API briefly to prevent concurrent writes, creates a PostgreSQL custom-format dump and a tar archive of the named uploaded-file volume, records the release commit and SHA-256 checksums, then restarts only the services that were running before the backup. If the script exits non-zero, treat that backup as incomplete and inspect service state before trying again. The sample assumes the Compose project volume is `datalens_storage_data`; set `STORAGE_VOLUME` if the production project name or volume name differs.
