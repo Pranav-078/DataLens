@@ -122,6 +122,7 @@ jobs:
 
   python-lockfile-refresh:
     name: Commit verified Python dependency locks
+    if: github.event_name == 'push'
     needs: [python-profiler]
     runs-on: ubuntu-latest
     permissions:
@@ -152,6 +153,7 @@ jobs:
   production-images:
     name: Production Compose validation and image builds
     needs: [backend, frontend, python-profiler, python-lockfile-refresh]
+    if: ${{ always() && needs.backend.result == 'success' && needs.frontend.result == 'success' && needs.python-profiler.result == 'success' && (needs.python-lockfile-refresh.result == 'success' || needs.python-lockfile-refresh.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out the exact release source
