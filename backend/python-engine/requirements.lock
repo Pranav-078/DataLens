@@ -2,7 +2,6 @@ annotated-doc==0.0.7
 annotated-types==0.8.0
 anyio==4.16.0
 click==8.5.1
-datasage-profiler @ file:///home/runner/work/DataLens/DataLens/backend/python-engine
 fastapi==0.163.1
 h11==0.16.0
 httptools==0.9.0
