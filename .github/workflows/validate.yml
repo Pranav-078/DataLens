@@ -159,6 +159,46 @@ jobs:
           registration_status="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' -H 'Content-Type: application/json' --data '{}' http://127.0.0.1:8080/api/auth/register)"
           test "$registration_status" = "403"
 
+          # Enable registration only in this disposable CI database to exercise
+          # signup, login, secure cookies and cross-account project isolation.
+          AUTH_ALLOW_REGISTRATION=true docker compose --env-file .env.production.example -f docker-compose.production.yml up -d --no-deps --force-recreate api
+          ready=0
+          for attempt in $(seq 1 24); do
+            if curl --fail --silent http://127.0.0.1:8080/api/health/ready > readiness-after-auth.json; then
+              ready=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ready" = "1"
+
+          user1_register_status="$(curl --silent --show-error --output user1.json --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' -H 'Content-Type: application/json' --data '{"name":"Smoke User One","email":"smoke-one@example.invalid","password":"StrongPass#123"}' http://127.0.0.1:8080/api/auth/register)"
+          test "$user1_register_status" = "201"
+          user1_project="$(python -c 'import json; print(json.load(open("user1.json"))["user"]["projectId"])')"
+          test -n "$user1_project"
+
+          bad_login_status="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' -H 'Content-Type: application/json' --data '{"email":"smoke-one@example.invalid","password":"WrongPassword#123"}' http://127.0.0.1:8080/api/auth/login)"
+          test "$bad_login_status" = "401"
+          login_status="$(curl --silent --show-error --cookie-jar user1.cookies --output login1.json --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' -H 'Content-Type: application/json' --data '{"email":"smoke-one@example.invalid","password":"StrongPass#123"}' http://127.0.0.1:8080/api/auth/login)"
+          test "$login_status" = "200"
+          grep -Eiq '^set-cookie: datalens_session=.*HttpOnly.*SameSite=Lax.*Secure' <(curl --silent --show-error --dump-header - --output /dev/null --cookie user1.cookies -X POST -H 'Origin: https://datalens.example.com' http://127.0.0.1:8080/api/auth/logout)
+          owner_access_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --cookie user1.cookies http://127.0.0.1:8080/api/projects/$user1_project)"
+          test "$owner_access_status" = "200"
+
+          user2_register_status="$(curl --silent --show-error --output user2.json --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' -H 'Content-Type: application/json' --data '{"name":"Smoke User Two","email":"smoke-two@example.invalid","password":"StrongPass#456"}' http://127.0.0.1:8080/api/auth/register)"
+          test "$user2_register_status" = "201"
+          user2_project="$(python -c 'import json; print(json.load(open("user2.json"))["user"]["projectId"])')"
+          test -n "$user2_project"
+          cross_account_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --cookie user1.cookies http://127.0.0.1:8080/api/projects/$user2_project)"
+          test "$cross_account_status" = "404"
+
+          curl --silent --show-error --dump-header logout.headers --output logout.body --cookie user1.cookies --cookie-jar user1.cookies -X POST -H 'Origin: https://datalens.example.com' http://127.0.0.1:8080/api/auth/logout
+          good_origin_status="$(awk 'BEGIN{IGNORECASE=1} /^HTTP\//{code=$2} END{print code}' logout.headers)"
+          test "$good_origin_status" = "200"
+          grep -Eiq '^set-cookie: datalens_session=.*HttpOnly.*SameSite=Lax.*Secure' logout.headers
+          logged_out_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --cookie user1.cookies http://127.0.0.1:8080/api/projects/$user1_project)"
+          test "$logged_out_status" = "401"
+
           db_privileges="$(docker compose --env-file .env.production.example -f docker-compose.production.yml exec -T db psql -U datalens_migrator -d datalens -Atqc "SELECT has_database_privilege('datalens_app','datalens','CONNECT') AND NOT has_database_privilege('datalens_app','datalens','CREATE') AND has_schema_privilege('datalens_app','public','USAGE') AND NOT has_schema_privilege('datalens_app','public','CREATE') AND has_table_privilege('datalens_app','users','SELECT') AND has_table_privilege('datalens_app','users','INSERT')")"
           test "$db_privileges" = "t"
 
