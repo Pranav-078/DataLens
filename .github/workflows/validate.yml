@@ -33,27 +33,22 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: backend/node-api/package-lock.json
-      - name: Regenerate lockfile for patched dependency versions
-        run: rm -f package-lock.json && npm install
+      - name: Install locked dependencies
+        run: npm ci
       - name: Report backend dependency advisories
         run: |
           npm audit --json > npm-audit.json || true
           node -e "const a=require('./npm-audit.json'); for (const [name,v] of Object.entries(a.vulnerabilities||{})) console.log([v.severity,name,'range='+v.range,'direct='+v.isDirect,'fix='+JSON.stringify(v.fixAvailable),'via='+v.via.map(x=>typeof x==='string'?x:x.name).join(',')].join(' | ')); console.log('Totals:',JSON.stringify(a.metadata?.vulnerabilities||{}))"
       - name: Fail on any backend dependency advisory
         run: npm audit --audit-level=low
-      - name: Verify regenerated backend lockfile with deterministic install
-        run: npm ci
       - name: Generate Prisma client
         run: npx prisma generate
       - name: TypeScript build
         run: npm run build
       - name: Run backend tests
         run: npm test
-      - name: Upload regenerated backend lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-package-lock
-          path: backend/node-api/package-lock.json
+      - name: Run backend lint checks
+        run: npm run lint
 
   frontend:
     name: React production build
@@ -68,23 +63,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Install dependencies
-        run: npm install
+      - name: Install locked dependencies
+        run: npm ci
       - name: Report frontend dependency advisories
         run: |
           npm audit --json > npm-audit.json || true
           node -e "const a=require('./npm-audit.json'); for (const [name,v] of Object.entries(a.vulnerabilities||{})) console.log([v.severity,name,'range='+v.range,'direct='+v.isDirect,'fix='+JSON.stringify(v.fixAvailable),'via='+v.via.map(x=>typeof x==='string'?x:x.name).join(',')].join(' | ')); console.log('Totals:',JSON.stringify(a.metadata?.vulnerabilities||{}))"
       - name: Fail on any frontend dependency advisory
         run: npm audit --audit-level=low
-      - name: Verify regenerated frontend lockfile with deterministic install
-        run: npm ci
       - name: Build frontend
         run: npm run build
-      - name: Upload regenerated frontend lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-package-lock
-          path: frontend/package-lock.json
 
 
   python-profiler:
@@ -104,13 +92,17 @@ jobs:
           cache-dependency-path: backend/python-engine/pyproject.toml
       - name: Install profiler and test dependencies
         run: python -m pip install -e ".[dev]"
+      - name: Audit Python dependencies
+        run: |
+          python -m pip install pip-audit
+          pip-audit --strict
       - name: Run profiler tests
         run: python -m pytest -q
 
 
   production-images:
     name: Production Compose validation and image builds
-    needs: [backend, frontend, lockfile-refresh]
+    needs: [backend, frontend, python-profiler]
     runs-on: ubuntu-latest
     steps:
       - name: Check out latest release branch after lockfile refresh
@@ -145,42 +137,20 @@ jobs:
           cat readiness.json
           curl --fail --silent http://127.0.0.1:8080/healthz
           bad_origin_status="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Origin: https://attacker.example' http://127.0.0.1:8080/api/auth/logout)"
-          good_origin_status="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' http://127.0.0.1:8080/api/auth/logout)"
           test "$bad_origin_status" = "403"
+
+          curl --silent --show-error --dump-header logout.headers --output logout.body -X POST -H 'Origin: https://datalens.example.com' http://127.0.0.1:8080/api/auth/logout
+          good_origin_status="$(awk 'BEGIN{IGNORECASE=1} /^HTTP\//{code=$2} END{print code}' logout.headers)"
           test "$good_origin_status" = "200"
+          grep -Eiq '^set-cookie: datalens_session=.*HttpOnly.*SameSite=Lax.*Secure' logout.headers
+
+          protected_status="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8080/api/projects/00000000-0000-0000-0000-000000000001)"
+          test "$protected_status" = "401"
+
+          registration_status="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' -H 'Content-Type: application/json' --data '{}' http://127.0.0.1:8080/api/auth/register)"
+          test "$registration_status" = "403"
+
+          db_privileges="$(docker compose --env-file .env.production.example -f docker-compose.production.yml exec -T db sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "SELECT has_database_privilege(''''datalens_app'''',''''datalens'''',''''CONNECT'''') AND NOT has_database_privilege(''''datalens_app'''',''''datalens'''',''''CREATE'''') AND has_schema_privilege(''''datalens_app'''',''''public'''',''''USAGE'''') AND NOT has_schema_privilege(''''datalens_app'''',''''public'''',''''CREATE'''') AND has_table_privilege(''''datalens_app'''',''''users'''',''''SELECT'''') AND has_table_privilege(''''datalens_app'''',''''users'''',''''INSERT'''')"')
+          test "$db_privileges" = "t"
+
           docker compose --env-file .env.production.example -f docker-compose.production.yml ps -a
-
-
-  lockfile-refresh:
-    name: Commit verified npm lockfiles
-    needs: [backend, frontend]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Check out current release branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref_name }}
-      - name: Download regenerated backend lockfile
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-package-lock
-          path: backend/node-api/
-      - name: Download regenerated frontend lockfile
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-package-lock
-          path: frontend/
-      - name: Commit verified lockfiles when changed
-        if: github.event_name == 'push'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add backend/node-api/package-lock.json frontend/package-lock.json
-          if git diff --cached --quiet; then
-            echo "Lockfiles already match package manifests."
-          else
-            git commit -m "chore: lock patched npm dependency trees"
-            git push origin "HEAD:${{ github.ref_name }}"
-          fi
