@@ -124,16 +124,16 @@ def post_profile_tables(payload: ProfileTablesRequest) -> ProfileTablesResponse:
     # A synchronous FastAPI handler is dispatched to its worker threadpool,
     # keeping CPU-heavy pandas/profiling work off the ASGI event loop.
     started = perf_counter()
-    input_bytes = sum(len(t.csvContent.encode("utf-8")) for t in payload.tables)
+    input_chars = sum(len(t.csvContent) for t in payload.tables)
     tables: dict[str, pd.DataFrame] = {
         t.tableName: _load_csv_string(t.csvContent) for t in payload.tables
     }
     loaded_at = perf_counter()
     logger.info(
-        "profile input loaded tables=%d rows=%d bytes=%d elapsed_ms=%.1f",
+        "profile input loaded tables=%d rows=%d chars=%d elapsed_ms=%.1f",
         len(tables),
         sum(len(frame) for frame in tables.values()),
-        input_bytes,
+        input_chars,
         (loaded_at - started) * 1000,
     )
 
