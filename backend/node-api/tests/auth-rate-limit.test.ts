@@ -69,7 +69,17 @@ describe("bounded authentication attempt store", () => {
 
     expect(store.size).toBe(AUTH_ATTEMPT_MAX_KEYS);
     expect(store.has("expired")).toBe(false);
-    expect(store.has("ip-0")).toBe(false);
+    // Expiring one stale key frees capacity, so no active key is evicted.
+    expect(store.has("ip-0")).toBe(true);
     expect(store.has("new-ip")).toBe(true);
+
+    const fullStore = new Map();
+    for (let index = 0; index < AUTH_ATTEMPT_MAX_KEYS; index += 1) {
+      fullStore.set("active-" + index, { count: 1, resetAt: now + 60_000 });
+    }
+    recordFailedAttempt(fullStore, "next-ip", now);
+    expect(fullStore.size).toBe(AUTH_ATTEMPT_MAX_KEYS);
+    expect(fullStore.has("active-0")).toBe(false);
+    expect(fullStore.has("next-ip")).toBe(true);
   });
 });
