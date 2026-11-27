@@ -134,11 +134,13 @@ def _parse_date_text(text: str) -> Optional[datetime]:
     is deliberately left to the existing format loop to preserve its
     existing naive-datetime behavior.
     """
-    if not text.endswith("Z"):
-        try:
-            return datetime.fromisoformat(text)
-        except ValueError:
-            pass
+    try:
+        # Keep the profiler's previous naive-datetime behavior for a trailing
+        # Z rather than introducing timezone-aware values.
+        iso_text = text[:-1] if text.endswith("Z") else text
+        return datetime.fromisoformat(iso_text)
+    except ValueError:
+        pass
     for date_format in _DATE_FORMATS:
         try:
             return datetime.strptime(text, date_format)
@@ -171,8 +173,22 @@ _DATE_FORMAT_PATTERNS: Tuple[tuple[re.Pattern[str], str], ...] = (
 @lru_cache(maxsize=131072)
 def _date_format_text(text: str) -> Optional[str]:
     for pattern, label in _DATE_FORMAT_PATTERNS:
-        if pattern.fullmatch(text):
+        if not pattern.fullmatch(text):
+            continue
+        # Slash-separated dates are ambiguous. Preserve strptime's original
+        # precedence (day/month first, then month/day) and reject impossible
+        # calendar values before assigning a format label.
+        try:
+            datetime.strptime(text, label)
             return label
+        except ValueError:
+            us_label = label.replace("%d/%m/%Y", "%m/%d/%Y")
+            if us_label != label:
+                try:
+                    datetime.strptime(text, us_label)
+                    return us_label
+                except ValueError:
+                    pass
     for candidate in _DATE_FORMATS:
         try:
             datetime.strptime(text, candidate)
