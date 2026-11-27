@@ -1,0 +1,195 @@
+name: datalens
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  profiler:
+    build:
+      context: ./backend/python-engine
+      dockerfile: Dockerfile
+      target: runtime
+    restart: unless-stopped
+    environment:
+      PROFILER_PORT: "8001"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    expose:
+      - "8001"
+    networks:
+      - data
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  migrate:
+    image: datalens-api-migrate:production
+    build:
+      context: ./backend/node-api
+      dockerfile: Dockerfile
+      target: migrate
+    restart: "no"
+    environment:
+      DATABASE_URL: ${MIGRATION_DATABASE_URL:?Set MIGRATION_DATABASE_URL}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - data
+    command: ["npx", "prisma", "migrate", "deploy"]
+
+  db-privileges:
+    image: postgres:16-bookworm
+    restart: "no"
+    entrypoint: ["psql"]
+    command:
+      - -v
+      - ON_ERROR_STOP=1
+      - -f
+      - /scripts/grant-runtime.sql
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:?Set POSTGRES_DB}
+      APP_DB_USER: ${APP_DB_USER:?Set APP_DB_USER}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD}
+    volumes:
+      - ./deploy/postgres/grant-runtime.sql:/scripts/grant-runtime.sql:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - data
+
+  api:
+    image: datalens-api:production
+    stop_grace_period: 5m
+    build:
+      context: ./backend/node-api
+      dockerfile: Dockerfile
+      target: runtime
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_PORT: "8000"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${APP_DATABASE_URL:?Set APP_DATABASE_URL}
+      STORAGE_ROOT: /data/storage
+      MAX_FILE_SIZE_BYTES: ${MAX_FILE_SIZE_BYTES:-52428800}
+      MAX_FILES_PER_UPLOAD: ${MAX_FILES_PER_UPLOAD:-10}
+      MAX_UPLOAD_BODY_BYTES: ${MAX_UPLOAD_BODY_BYTES:-104857600}
+      PROFILER_BASE_URL: http://profiler:8001
+      PROFILER_TIMEOUT_MS: ${PROFILER_TIMEOUT_MS:-240000}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-30000}
+      RAG_RERANK_ENABLED: ${RAG_RERANK_ENABLED:-true}
+      RAG_RETRIEVAL_CANDIDATES: ${RAG_RETRIEVAL_CANDIDATES:-25}
+      RAG_TOP_K: ${RAG_TOP_K:-5}
+      RAG_MIN_SIMILARITY: ${RAG_MIN_SIMILARITY:-0.20}
+      RAG_HISTORY_MESSAGES: ${RAG_HISTORY_MESSAGES:-8}
+      AUTH_ENABLED: "true"
+      AUTH_ALLOW_REGISTRATION: ${AUTH_ALLOW_REGISTRATION:-false}
+      AUTH_ADMIN_EMAIL: ${AUTH_ADMIN_EMAIL:-}
+      AUTH_ADMIN_PASSWORD_HASH: ${AUTH_ADMIN_PASSWORD_HASH:-}
+      AUTH_COOKIE_SECRET: ${AUTH_COOKIE_SECRET:?Set AUTH_COOKIE_SECRET}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?Set PUBLIC_ORIGIN}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+    volumes:
+      - storage_data:/data/storage
+    expose:
+      - "8000"
+    networks:
+      - edge
+      - data
+    depends_on:
+      db-privileges:
+        condition: service_completed_successfully
+      profiler:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  frontend:
+    image: datalens-frontend:production
+    stop_grace_period: 5m
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runtime
+      args:
+        VITE_API_BASE_URL: /api
+    restart: unless-stopped
+    ports:
+      - "${HTTP_BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-8080}:8080"
+    networks:
+      - edge
+    depends_on:
+      api:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,noexec,nosuid
+      - /var/cache/nginx:size=32m
+      - /var/run:size=8m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  edge:
+    driver: bridge
+  data:
+    driver: bridge
+    internal: true
+
+volumes:
+  db_data:
+  storage_data:
