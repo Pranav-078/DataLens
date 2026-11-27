@@ -55,7 +55,8 @@ class TestDeriveRowUid:
 class TestAdaptIssue:
     def test_maps_dimension_and_severity_explicitly(self):
         issue = make_issue(issue_type="required_field_missing", severity="error")
-        frame = pd.DataFrame({"phone": ["", "555-1234"]})
+        # The default test issue references source row index 2.
+        frame = pd.DataFrame({"phone": ["", "555-1234", "555-9876"]})
         [finding] = adapt_issue(issue, frame)
         assert finding.dimension == "completeness"
         assert finding.severity == "high"
