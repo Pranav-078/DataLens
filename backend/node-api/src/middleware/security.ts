@@ -27,7 +27,7 @@ export function isTrustedOrigin(origin: string | undefined, publicOrigin: string
   try {
     const parsed = new URL(origin);
     const expected = new URL(publicOrigin);
-    return parsed.origin === expected.origin;
+    return parsed.origin === origin && parsed.origin === expected.origin;
   } catch {
     return false;
   }
