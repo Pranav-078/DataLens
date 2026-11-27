@@ -43,7 +43,8 @@ services:
       STORAGE_ROOT: ${STORAGE_ROOT}
       MAX_FILE_SIZE_BYTES: ${MAX_FILE_SIZE_BYTES}
       MAX_FILES_PER_UPLOAD: ${MAX_FILES_PER_UPLOAD}
-      PROFILER_BASE_URL: ${PROFILER_BASE_URL}
+      # Always use Compose DNS inside the Docker network; localhost here is the API container.
+      PROFILER_BASE_URL: http://profiler:8001
       PROFILER_TIMEOUT_MS: ${PROFILER_TIMEOUT_MS}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_TIMEOUT_MS: ${GEMINI_TIMEOUT_MS:-30000}
