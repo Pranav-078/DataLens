@@ -1,5 +1,5 @@
 # Build with the lockfile and a generated Prisma client.
-FROM node:20-bookworm-slim AS build
+FROM node:24-bookworm-slim AS build
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates \
@@ -18,13 +18,13 @@ ENV NODE_ENV=production
 CMD ["npx", "prisma", "migrate", "deploy"]
 
 # Runtime dependencies exclude TypeScript, Vitest and the Prisma CLI.
-FROM node:20-bookworm-slim AS production-dependencies
+FROM node:24-bookworm-slim AS production-dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 # Small non-root production API image.
-FROM node:20-bookworm-slim AS runtime
+FROM node:24-bookworm-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 RUN apt-get update \
