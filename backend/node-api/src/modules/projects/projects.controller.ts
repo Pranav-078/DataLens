@@ -1,6 +1,11 @@
 import type { Request, Response } from "express";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { prisma } from "../../db/prisma.js";
+import { config } from "../../config.js";
 import type { ProfilingDb } from "../../repo/types.js";
+import { inferRelationshipsFromTables } from "../uploads/profilerClient.js";
+import { replaceVersionRelationships } from "../../repo/profilingRepo.js";
 import {
   getProjectOrThrow,
   getVersionScopedToProject,
@@ -165,6 +170,45 @@ export async function getVersionRelationships(req: Request, res: Response) {
       orphanPercentage: r.orphanPercentage, orphanExamples: r.orphanExamples, evidence: r.evidence,
       cardinality: "one-to-many",
     })),
+  });
+}
+
+
+/**
+ * POST /projects/:projectId/versions/:versionId/relationships/recompute
+ * Rebuilds links from this version's saved CSV files without creating
+ * another dataset version or rerunning row-level quality detectors.
+ */
+export async function rebuildVersionRelationships(req: Request, res: Response) {
+  const { projectId, versionId } = req.params as { projectId: string; versionId: string };
+  const version = await getVersionScopedToProject(db, projectId, versionId);
+  if (version.status !== "ready") {
+    res.status(409).json({ message: "Relationships can only be rebuilt for a completed dataset version." });
+    return;
+  }
+
+  const tables = await getTablesWithColumns(db, projectId, versionId);
+  const storageRoot = path.resolve(config.STORAGE_ROOT);
+  const profilerTables = await Promise.all(tables.map(async (table) => {
+    const storedPath = path.resolve(table.filePath);
+    const relativePath = path.relative(storageRoot, storedPath);
+    if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+      throw new Error(`Stored CSV path for table "${table.tableName}" is outside the configured storage directory.`);
+    }
+    const csvContent = await readFile(storedPath, "utf8");
+    return { tableName: table.tableName, csvContent };
+  }));
+
+  const result = await inferRelationshipsFromTables(profilerTables);
+  await replaceVersionRelationships(db, { versionId, relationships: result.relationships });
+
+  res.status(200).json({
+    versionId,
+    tableCount: result.tableCount,
+    relationshipCount: result.relationships.length,
+    message: result.relationships.length
+      ? `Rebuilt ${result.relationships.length} relationship(s) from saved CSV files.`
+      : "Rebuild completed. No relationships met the current confidence and containment thresholds.",
   });
 }
 
