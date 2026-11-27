@@ -39,6 +39,10 @@ jobs:
         run: |
           npm audit --json > npm-audit.json || true
           node -e "const a=require('./npm-audit.json'); for (const [name,v] of Object.entries(a.vulnerabilities||{})) console.log([v.severity,name,'range='+v.range,'direct='+v.isDirect,'fix='+JSON.stringify(v.fixAvailable),'via='+v.via.map(x=>typeof x==='string'?x:x.name).join(',')].join(' | ')); console.log('Totals:',JSON.stringify(a.metadata?.vulnerabilities||{}))"
+      - name: Fail on any backend dependency advisory
+        run: npm audit --audit-level=low
+      - name: Verify regenerated backend lockfile with deterministic install
+        run: npm ci
       - name: Generate Prisma client
         run: npx prisma generate
       - name: TypeScript build
@@ -70,6 +74,10 @@ jobs:
         run: |
           npm audit --json > npm-audit.json || true
           node -e "const a=require('./npm-audit.json'); for (const [name,v] of Object.entries(a.vulnerabilities||{})) console.log([v.severity,name,'range='+v.range,'direct='+v.isDirect,'fix='+JSON.stringify(v.fixAvailable),'via='+v.via.map(x=>typeof x==='string'?x:x.name).join(',')].join(' | ')); console.log('Totals:',JSON.stringify(a.metadata?.vulnerabilities||{}))"
+      - name: Fail on any frontend dependency advisory
+        run: npm audit --audit-level=low
+      - name: Verify regenerated frontend lockfile with deterministic install
+        run: npm ci
       - name: Build frontend
         run: npm run build
       - name: Upload regenerated frontend lockfile
@@ -102,10 +110,13 @@ jobs:
 
   production-images:
     name: Production Compose validation and image builds
+    needs: [backend, frontend, lockfile-refresh]
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: Check out latest release branch after lockfile refresh
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
       - name: Validate production Compose configuration
         run: docker compose --env-file .env.production.example -f docker-compose.production.yml config --quiet
       - name: Build production API, migration, profiler and frontend images
@@ -138,3 +149,38 @@ jobs:
           test "$bad_origin_status" = "403"
           test "$good_origin_status" = "200"
           docker compose --env-file .env.production.example -f docker-compose.production.yml ps -a
+
+
+  lockfile-refresh:
+    name: Commit verified npm lockfiles
+    if: github.event_name == 'push'
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out current release branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Download regenerated backend lockfile
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-package-lock
+          path: backend/node-api/
+      - name: Download regenerated frontend lockfile
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-package-lock
+          path: frontend/
+      - name: Commit verified lockfiles when changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/node-api/package-lock.json frontend/package-lock.json
+          if git diff --cached --quiet; then
+            echo "Lockfiles already match package manifests."
+          else
+            git commit -m "chore: lock patched npm dependency trees"
+            git push origin "HEAD:${{ github.ref_name }}"
+          fi
