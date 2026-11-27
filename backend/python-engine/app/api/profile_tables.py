@@ -128,6 +128,18 @@ class ProfileTablesResponse(BaseModel):
     relationships: list[RelationshipPayload]
 
 
+class ProfileRelationshipsRequest(BaseModel):
+    """Rebuild relationship candidates from saved CSVs without rerunning issue detectors."""
+    tables: list[TablePayload]
+    sampleSizePerTable: int = Field(default=5_000, ge=1_000, le=50_000)
+
+
+class ProfileRelationshipsResponse(BaseModel):
+    status: Literal["relationships_inferred"]
+    tableCount: int
+    relationships: list[RelationshipPayload]
+
+
 def _load_csv_string(csv_content: str) -> pd.DataFrame:
     """Matches Phase 1's own io.py reading convention exactly: every cell
     read as a raw string, with pandas' automatic NA detection disabled.
@@ -174,7 +186,10 @@ def post_profile_tables(payload: ProfileTablesRequest) -> ProfileTablesResponse:
             )
             for name, frame in loaded_tables.items()
         }
-        del loaded_tables
+        # Keep loaded_tables alive for relationship inference. Sampling
+        # parent and child tables independently can hide valid foreign keys;
+        # containment is checked against complete source columns while the
+        # Phase 1 quality detectors remain sampled.
         estimated = True
     else:
         tables = loaded_tables
@@ -199,8 +214,9 @@ def post_profile_tables(payload: ProfileTablesRequest) -> ProfileTablesResponse:
         estimated=estimated,
     )
     adapted_at = perf_counter()
-    # Reuses the same profile tables and already-computed column profiles.
-    relationships = infer_relationships(tables, result.tables)
+    # Use sampled candidate statistics, but validate key containment against
+    # every source row so independent samples cannot create false negatives.
+    relationships = infer_relationships(loaded_tables, result.tables)
     related_at = perf_counter()
     logger.info(
         "profile computation complete mode=%s tables=%d findings=%d relationships=%d load_ms=%.1f profile_ms=%.1f adapter_ms=%.1f relationships_ms=%.1f total_ms=%.1f",
@@ -261,25 +277,79 @@ def post_profile_tables(payload: ProfileTablesRequest) -> ProfileTablesResponse:
                 confidence_band=r.confidence_band,
                 status="inferred",
                 value_overlap=r.value_overlap,
-                orphan_count=(
-                    min(
-                        source_row_counts[r.child_table],
-                        int((r.orphan_percentage / 100) * source_row_counts[r.child_table] + 0.5),
-                    )
-                    if estimated and profiled_row_counts[r.child_table] < source_row_counts[r.child_table]
-                    else r.orphan_count
-                ),
+                orphan_count=r.orphan_count,
                 orphan_percentage=r.orphan_percentage,
                 orphan_examples=r.orphan_examples,
                 evidence={
                     **r.evidence,
                     "analysisMode": payload.profileMode,
-                    "estimated": (
+                    "candidateStatsSampled": (
                         estimated
                         and profiled_row_counts[r.child_table] < source_row_counts[r.child_table]
                     ),
+                    "orphanMetricsExact": True,
                     "profiledChildRows": profiled_row_counts[r.child_table],
                     "sourceChildRows": source_row_counts[r.child_table],
+                },
+            )
+            for r in relationships
+        ],
+    )
+
+
+
+@router.post("/internal/profile/relationships", response_model=ProfileRelationshipsResponse)
+def post_profile_relationships(payload: ProfileRelationshipsRequest) -> ProfileRelationshipsResponse:
+    """Rebuild links from saved CSVs without rerunning row-level issue detectors."""
+    started = perf_counter()
+    source_tables: dict[str, pd.DataFrame] = {
+        table.tableName: _load_csv_string(table.csvContent) for table in payload.tables
+    }
+    profiled_tables: dict[str, pd.DataFrame] = {
+        name: (
+            frame.sample(n=payload.sampleSizePerTable, random_state=42).sort_index()
+            if len(frame) > payload.sampleSizePerTable
+            else frame
+        )
+        for name, frame in source_tables.items()
+    }
+    result = DataProfiler().profile(profiled_tables)
+    relationships = infer_relationships(source_tables, result.tables)
+    elapsed_ms = (perf_counter() - started) * 1000
+    logger.info(
+        "relationship rebuild complete tables=%d source_rows=%d profiled_rows=%d relationships=%d elapsed_ms=%.1f",
+        len(source_tables),
+        sum(len(frame) for frame in source_tables.values()),
+        sum(len(frame) for frame in profiled_tables.values()),
+        len(relationships),
+        elapsed_ms,
+    )
+    return ProfileRelationshipsResponse(
+        status="relationships_inferred",
+        tableCount=len(source_tables),
+        relationships=[
+            RelationshipPayload(
+                parent_table=r.parent_table,
+                parent_column=r.parent_column,
+                child_table=r.child_table,
+                child_column=r.child_column,
+                confidence=r.confidence,
+                confidence_band=r.confidence_band,
+                status="inferred",
+                value_overlap=r.value_overlap,
+                orphan_count=r.orphan_count,
+                orphan_percentage=r.orphan_percentage,
+                orphan_examples=r.orphan_examples,
+                evidence={
+                    **r.evidence,
+                    "analysisMode": "relationship_rebuild",
+                    "candidateStatsSampled": any(
+                        len(profiled_tables[name]) < len(source_tables[name])
+                        for name in source_tables
+                    ),
+                    "orphanMetricsExact": True,
+                    "profiledChildRows": len(profiled_tables[r.child_table]),
+                    "sourceChildRows": len(source_tables[r.child_table]),
                 },
             )
             for r in relationships
