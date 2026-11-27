@@ -68,8 +68,10 @@ resume_services() {
 }
 trap resume_services EXIT
 
-echo "Stopping frontend and API briefly to keep database and uploaded-file backups consistent..."
-"${compose[@]}" stop frontend api
+echo "Stopping frontend first so no new requests enter the application..."
+"${compose[@]}" stop frontend
+echo "Waiting for active API requests to drain..."
+"${compose[@]}" stop api
 
 echo "Creating PostgreSQL logical backup..."
 "${compose[@]}" exec -T db sh -ec 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$target/database.dump"
