@@ -18,6 +18,7 @@ entirely Node's responsibility (Phase 2 Slice C).
 from __future__ import annotations
 
 import io
+from time import perf_counter
 from typing import Optional
 
 import pandas as pd
@@ -29,6 +30,7 @@ from datasage_profiler.engine import DataProfiler
 
 from app.adapters.phase1_adapter import adapt_profile_result
 from app.relationships.inference import infer_relationships
+from app.logging_config import logger
 
 router = APIRouter()
 
@@ -118,18 +120,44 @@ def _load_csv_string(csv_content: str) -> pd.DataFrame:
 
 
 @router.post("/internal/profile/tables", response_model=ProfileTablesResponse)
-async def post_profile_tables(payload: ProfileTablesRequest) -> ProfileTablesResponse:
+def post_profile_tables(payload: ProfileTablesRequest) -> ProfileTablesResponse:
+    # A synchronous FastAPI handler is dispatched to its worker threadpool,
+    # keeping CPU-heavy pandas/profiling work off the ASGI event loop.
+    started = perf_counter()
+    input_bytes = sum(len(t.csvContent.encode("utf-8")) for t in payload.tables)
     tables: dict[str, pd.DataFrame] = {
         t.tableName: _load_csv_string(t.csvContent) for t in payload.tables
     }
+    loaded_at = perf_counter()
+    logger.info(
+        "profile input loaded tables=%d rows=%d bytes=%d elapsed_ms=%.1f",
+        len(tables),
+        sum(len(frame) for frame in tables.values()),
+        input_bytes,
+        (loaded_at - started) * 1000,
+    )
 
     result = DataProfiler().profile(tables)
+    profiled_at = perf_counter()
     findings = adapt_profile_result(result, tables)
+    adapted_at = perf_counter()
     # Reuses the SAME `tables` dict and the SAME already-computed Phase 1
     # column profiles (result.tables) — no second CSV parse, no second
     # profiling pass. See app/relationships/inference.py for the algorithm;
     # nothing about it is duplicated here.
     relationships = infer_relationships(tables, result.tables)
+    related_at = perf_counter()
+    logger.info(
+        "profile computation complete tables=%d findings=%d relationships=%d load_ms=%.1f profile_ms=%.1f adapter_ms=%.1f relationships_ms=%.1f total_ms=%.1f",
+        len(tables),
+        len(findings),
+        len(relationships),
+        (loaded_at - started) * 1000,
+        (profiled_at - loaded_at) * 1000,
+        (adapted_at - profiled_at) * 1000,
+        (related_at - adapted_at) * 1000,
+        (related_at - started) * 1000,
+    )
 
     table_summaries = [
         TableProfileSummary(
