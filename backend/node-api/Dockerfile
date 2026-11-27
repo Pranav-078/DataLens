@@ -4,7 +4,7 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-COPY package.json package-lock.json ./
+COPY package.json ./
 RUN npm install
 COPY prisma ./prisma
 RUN npx prisma generate
@@ -20,7 +20,7 @@ CMD ["npx", "prisma", "migrate", "deploy"]
 # Runtime dependencies exclude TypeScript, Vitest and the Prisma CLI.
 FROM node:24-bookworm-slim AS production-dependencies
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json ./
 RUN npm install --omit=dev
 
 # Small non-root production API image.
