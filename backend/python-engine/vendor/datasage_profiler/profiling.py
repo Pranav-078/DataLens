@@ -8,7 +8,7 @@ import pandas as pd
 
 from .config import ProfilerConfig
 from .models import ColumnProfile, DatasetProfile
-from .utils import infer_type, is_null_value, name_matches
+from .utils import infer_type_from_values, is_null_value, name_matches
 
 
 def _is_empty_string(value: object) -> bool:
@@ -23,19 +23,24 @@ def build_dataset_profile(table: str, frame: pd.DataFrame, config: ProfilerConfi
         # series.tolist() separately for each statistic, allocating several
         # full-size Python lists per column on large uploads.
         values = series.tolist()
-        null_count = sum(is_null_value(value, config.missing_tokens) for value in values)
-        empty_count = sum(_is_empty_string(value) for value in values)
-        non_null_values = [
-            value for value in values
-            if not is_null_value(value, config.missing_tokens) and not _is_empty_string(value)
-        ]
+        null_count = 0
+        empty_count = 0
+        non_null_values = []
+        for value in values:
+            is_null = is_null_value(value, config.missing_tokens)
+            is_empty = _is_empty_string(value)
+            if is_null:
+                null_count += 1
+            if is_empty:
+                empty_count += 1
+            if not is_null and not is_empty:
+                non_null_values.append(value)
         unique_count = len({str(value) for value in non_null_values})
         columns.append(
             ColumnProfile(
                 name=str(name),
-                inferred_type=infer_type(
-                    series,
-                    config.missing_tokens,
+                inferred_type=infer_type_from_values(
+                    non_null_values,
                     numeric_name_hint=name_matches(str(name), config.numeric_name_patterns),
                     date_name_hint=name_matches(str(name), config.date_name_patterns),
                 ),
