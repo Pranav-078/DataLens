@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Navigate, NavLink, Route, Routes, useNavigate } from "react-router-dom";
 import {
-  Activity, ArrowUpRight, Bell, BookOpen, ChevronDown, Database, FileUp,
-  GitBranch, LayoutDashboard, LogOut, Search, Sparkles, TriangleAlert
+  Activity, ArrowUpRight, BookOpen, ChevronDown, Database, FileUp,
+  GitBranch, LayoutDashboard, LogOut, Moon, Sparkles, Sun, TriangleAlert
 } from "lucide-react";
 import { Dashboard } from "./pages/Dashboard";
 import { UploadPage } from "./pages/UploadPage";
@@ -16,7 +16,7 @@ import {
   loginUser, registerUser, logoutUser
 } from "./services/api";
 
-function Shell({ children, onLogout, apiStatus }) {
+function Shell({ children, onLogout, apiStatus, theme, onToggleTheme }) {
   const links = [
     ["/", "Overview", LayoutDashboard],
     ["/datasets", "Data catalog", Database],
@@ -41,7 +41,7 @@ function Shell({ children, onLogout, apiStatus }) {
     <main className="main-area">
       <header className="topbar">
         <div className="crumb">Workspace <i>/</i> <strong>{({ "/": "Overview", "/datasets": "Data catalog", "/upload": "Upload CSVs", "/issues": "Quality issues", "/relationships": "Relationships", "/ai": "AI workspace" })[location.pathname] || "Workspace"}</strong></div>
-        <div className="top-actions"><span className={"api-status " + apiStatus}><i/> {apiStatus === "ready" ? "API connected" : apiStatus === "checking" ? "Checking API…" : "API unavailable"}</span><button className="icon-button"><Search size={17}/></button><button className="icon-button"><Bell size={17}/></button><b className="top-avatar">DL</b></div>
+        <div className="top-actions"><span className={"api-status " + apiStatus}><i/> {apiStatus === "ready" ? "API connected" : apiStatus === "checking" ? "Checking API…" : "API unavailable"}</span><button type="button" className="theme-toggle" onClick={onToggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} aria-pressed={theme === "dark"} title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>{theme === "dark" ? <Sun size={16}/> : <Moon size={16}/>}<span>{theme === "dark" ? "Light mode" : "Dark mode"}</span></button><b className="top-avatar">DL</b></div>
       </header>
       <div className="page-content">{children}</div>
     </main>
@@ -55,10 +55,30 @@ export default function App() {
   const [authChecking, setAuthChecking] = useState(true);
   const [authCheckError, setAuthCheckError] = useState("");
   const [apiStatus, setApiStatus] = useState("checking");
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("datalens-theme") === "dark" ? "dark" : "light";
+    } catch {
+      return "light";
+    }
+  });
   const [projectId, setProjectId] = useState(() => localStorage.getItem("datalens-project-id") || "");
   const [versionId, setVersionId] = useState(() => localStorage.getItem("datalens-version-id") || "");
   const [projectName, setProjectName] = useState(() => localStorage.getItem("datalens-project-name") || "Your workspace");
   const navigate = useNavigate();
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem("datalens-theme", theme);
+    } catch {
+      // Keep the in-memory theme usable when browser storage is unavailable.
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(current => current === "dark" ? "light" : "dark");
+  };
 
   useEffect(() => {
     let active = true;
@@ -185,7 +205,7 @@ export default function App() {
   if (authChecking) return <div className="auth-loading">Checking DataLens access…</div>;
   if (!auth) return <Routes><Route path="/login" element={<LoginPage authEnabled={authEnabled} registrationAllowed={registrationAllowed} onLogin={handleLogin} onRegister={handleRegister} onContinue={continuePreview} initialNotice={authCheckError}/>}/><Route path="*" element={<Navigate to="/login" replace/>}/></Routes>;
 
-  return <Shell onLogout={logout} apiStatus={apiStatus}>
+  return <Shell onLogout={logout} apiStatus={apiStatus} theme={theme} onToggleTheme={toggleTheme}>
     <Routes>
       <Route path="/" element={<Dashboard projectId={projectId} versionId={versionId}/>}/>
       <Route path="/upload" element={<UploadPage projectId={projectId} onComplete={complete}/>}/>
