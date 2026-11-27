@@ -231,15 +231,41 @@ jobs:
           login_status="$(curl --silent --show-error --dump-header login1.headers --cookie-jar user1.cookies --output login1.json --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' -H 'Content-Type: application/json' --data '{"email":"smoke-one@example.invalid","password":"StrongPass#123"}' http://127.0.0.1:8080/api/auth/login)"
           test "$login_status" = "200"
           grep -Eiq '^set-cookie: datalens_session=.*HttpOnly.*SameSite=Lax.*Secure' login1.headers
-          owner_access_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --cookie user1.cookies http://127.0.0.1:8080/api/projects/$user1_project)"
+          session_token="$(awk 'BEGIN{IGNORECASE=1} /^set-cookie: datalens_session=/ {sub(/^[^:]*: datalens_session=/, ""); sub(/;.*/, ""); print; exit}' login1.headers)"
+          test -n "$session_token"
+          owner_access_status="$(curl --silent --output /dev/null --write-out '%{http_code}' -H "Cookie: datalens_session=$session_token" http://127.0.0.1:8080/api/projects/$user1_project)"
           test "$owner_access_status" = "200"
 
           user2_register_status="$(curl --silent --show-error --output user2.json --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' -H 'Content-Type: application/json' --data '{"name":"Smoke User Two","email":"smoke-two@example.invalid","password":"StrongPass#456"}' http://127.0.0.1:8080/api/auth/register)"
           test "$user2_register_status" = "201"
           user2_project="$(python -c 'import json; print(json.load(open("user2.json"))["user"]["projectId"])')"
           test -n "$user2_project"
-          cross_account_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --cookie user1.cookies http://127.0.0.1:8080/api/projects/$user2_project)"
+          cross_account_status="$(curl --silent --output /dev/null --write-out '%{http_code}' -H "Cookie: datalens_session=$session_token" http://127.0.0.1:8080/api/projects/$user2_project)"
           test "$cross_account_status" = "404"
+
+          # Exercise a real Node -> Python -> PostgreSQL upload before taking
+          # the paired database and uploaded-file backup.
+          python - <<'PY'
+          import csv
+          with open("customers.csv", "w", newline="", encoding="utf-8") as handle:
+              writer = csv.writer(handle)
+              writer.writerow(["id", "name"])
+              for index in range(25):
+                  writer.writerow([f"C{index:03d}", f"Customer {index}"])
+          with open("orders.csv", "w", newline="", encoding="utf-8") as handle:
+              writer = csv.writer(handle)
+              writer.writerow(["order_id", "customer_id", "status"])
+              for index in range(40):
+                  writer.writerow([f"O{index:03d}", f"C{index % 25:03d}", "delivered"])
+          PY
+          upload_status="$(curl --silent --show-error --output upload.json --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' -H "Cookie: datalens_session=$session_token" -F "projectId=$user1_project" -F "profileMode=fast" -F 'files=@customers.csv;type=text/csv' -F 'files=@orders.csv;type=text/csv' http://127.0.0.1:8080/api/uploads/validate)"
+          test "$upload_status" = "200"
+          upload_file_count="$(python -c 'import json; print(json.load(open("upload.json"))["fileCount"])')"
+          upload_relationship_count="$(python -c 'import json; print(json.load(open("upload.json"))["profiling"]["relationshipCount"])')"
+          uploaded_version_id="$(python -c 'import json; print(json.load(open("upload.json"))["versionId"])')"
+          test "$upload_file_count" = "2"
+          test "$upload_relationship_count" -gt 0
+          test -n "$uploaded_version_id"
 
           curl --silent --show-error --dump-header logout.headers --output logout.body --cookie user1.cookies --cookie-jar user1.cookies -X POST -H 'Origin: https://datalens.example.com' http://127.0.0.1:8080/api/auth/logout
           good_origin_status="$(awk 'BEGIN{IGNORECASE=1} /^HTTP\//{code=$2} END{print code}' logout.headers)"
@@ -251,4 +277,68 @@ jobs:
           db_privileges="$(docker compose --env-file .env.production.example -f docker-compose.production.yml exec -T db psql -U datalens_migrator -d datalens -Atqc "SELECT has_database_privilege('datalens_app','datalens','CONNECT') AND NOT has_database_privilege('datalens_app','datalens','CREATE') AND has_schema_privilege('datalens_app','public','USAGE') AND NOT has_schema_privilege('datalens_app','public','CREATE') AND has_table_privilege('datalens_app','users','SELECT') AND has_table_privilege('datalens_app','users','INSERT')")"
           test "$db_privileges" = "t"
 
+          # Produce a coordinated database + file-volume backup and verify it.
+          BACKUP_ROOT=/tmp/datalens-backups ENV_FILE=.env.production.example ./scripts/backup-production.sh
+          backup_dir="$(find /tmp/datalens-backups -mindepth 1 -maxdepth 1 -type d -name 'datalens-*' -print -quit)"
+          test -n "$backup_dir"
+          test -s "$backup_dir/database.dump"
+          test -s "$backup_dir/storage.tar.gz"
+          (cd "$backup_dir" && sha256sum --check SHA256SUMS)
+
+          ready=0
+          for attempt in $(seq 1 24); do
+            if curl --fail --silent http://127.0.0.1:8080/api/health/ready > readiness-after-backup.json; then
+              ready=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ready" = "1"
+
+          # Restore into a separate Compose project with separate named volumes.
+          recovery_compose=(docker compose -p datalens-recovery-ci --env-file .env.production.example -f docker-compose.production.yml)
+          HTTP_PORT=18080 "${recovery_compose[@]}" up -d db
+          recovery_db_ready=0
+          for attempt in $(seq 1 24); do
+            if HTTP_PORT=18080 "${recovery_compose[@]}" exec -T db sh -ec 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1; then
+              recovery_db_ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "$recovery_db_ready" = "1"
+
+          HTTP_PORT=18080 "${recovery_compose[@]}" exec -T db sh -ec 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner --no-acl --exit-on-error' < "$backup_dir/database.dump"
+          docker run --rm \
+            --mount type=volume,src=datalens-recovery-ci_storage_data,dst=/target \
+            --mount "type=bind,src=$backup_dir,dst=/backup,readonly" \
+            alpine:3.21 sh -ec 'tar -xzf /backup/storage.tar.gz -C /target'
+
+          HTTP_PORT=18080 "${recovery_compose[@]}" run --rm db-privileges
+          HTTP_PORT=18080 "${recovery_compose[@]}" up -d
+          recovery_ready=0
+          for attempt in $(seq 1 36); do
+            if curl --fail --silent http://127.0.0.1:18080/api/health/ready > recovery-readiness.json; then
+              recovery_ready=1
+              break
+            fi
+            sleep 5
+          done
+          test "$recovery_ready" = "1"
+
+          recovery_counts="$(HTTP_PORT=18080 "${recovery_compose[@]}" exec -T db psql -U datalens_migrator -d datalens -Atqc "SELECT (SELECT count(*) FROM users) || ':' || (SELECT count(*) FROM projects) || ':' || (SELECT count(*) FROM dataset_versions) || ':' || (SELECT count(*) FROM dataset_tables) || ':' || (SELECT count(*) FROM inferred_relationships)")"
+          IFS=: read -r recovery_users recovery_projects recovery_versions recovery_tables recovery_relationships <<< "$recovery_counts"
+          test "$recovery_users" = "2"
+          test "$recovery_projects" = "2"
+          test "$recovery_versions" = "1"
+          test "$recovery_tables" = "2"
+          test "$recovery_relationships" -gt 0
+
+          recovery_storage_files="$(docker run --rm --mount type=volume,src=datalens-recovery-ci_storage_data,dst=/target alpine:3.21 sh -ec 'find /target -type f | wc -l' | tr -d '[:space:]')"
+          test "$recovery_storage_files" -ge 2
+
+          recovery_login_status="$(curl --silent --show-error --output recovery-login.json --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' -H 'Content-Type: application/json' --data '{"email":"smoke-one@example.invalid","password":"StrongPass#123"}' http://127.0.0.1:18080/api/auth/login)"
+          test "$recovery_login_status" = "200"
+
           docker compose --env-file .env.production.example -f docker-compose.production.yml ps -a
+          HTTP_PORT=18080 "${recovery_compose[@]}" ps -a
