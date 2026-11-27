@@ -161,7 +161,7 @@ jobs:
 
           # Enable registration only in this disposable CI database to exercise
           # signup, login, secure cookies and cross-account project isolation.
-          AUTH_ALLOW_REGISTRATION=true docker compose --env-file .env.production.example -f docker-compose.production.yml up -d --no-deps --force-recreate api
+          AUTH_ALLOW_REGISTRATION=true docker compose --env-file .env.production.example -f docker-compose.production.yml up -d --no-deps --force-recreate api frontend
           ready=0
           for attempt in $(seq 1 24); do
             if curl --fail --silent http://127.0.0.1:8080/api/health/ready > readiness-after-auth.json; then
@@ -179,9 +179,9 @@ jobs:
 
           bad_login_status="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' -H 'Content-Type: application/json' --data '{"email":"smoke-one@example.invalid","password":"WrongPassword#123"}' http://127.0.0.1:8080/api/auth/login)"
           test "$bad_login_status" = "401"
-          login_status="$(curl --silent --show-error --cookie-jar user1.cookies --output login1.json --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' -H 'Content-Type: application/json' --data '{"email":"smoke-one@example.invalid","password":"StrongPass#123"}' http://127.0.0.1:8080/api/auth/login)"
+          login_status="$(curl --silent --show-error --dump-header login1.headers --cookie-jar user1.cookies --output login1.json --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' -H 'Content-Type: application/json' --data '{"email":"smoke-one@example.invalid","password":"StrongPass#123"}' http://127.0.0.1:8080/api/auth/login)"
           test "$login_status" = "200"
-          grep -Eiq '^set-cookie: datalens_session=.*HttpOnly.*SameSite=Lax.*Secure' <(curl --silent --show-error --dump-header - --output /dev/null --cookie user1.cookies -X POST -H 'Origin: https://datalens.example.com' http://127.0.0.1:8080/api/auth/logout)
+          grep -Eiq '^set-cookie: datalens_session=.*HttpOnly.*SameSite=Lax.*Secure' login1.headers
           owner_access_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --cookie user1.cookies http://127.0.0.1:8080/api/projects/$user1_project)"
           test "$owner_access_status" = "200"
 
