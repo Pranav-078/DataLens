@@ -7,6 +7,7 @@ from app.adapters.phase1_adapter import (
     adapt_profile_result,
     derive_row_uid,
     AdapterMappingError,
+    aggregate_profile_result,
 )
 from datasage_profiler.models import Issue, ProfileResult, DatasetProfile
 
@@ -141,3 +142,60 @@ class TestAdaptProfileResult:
         findings = adapt_profile_result(result, {"customers": customers, "orders": orders})
         assert len(findings) == 2
         assert {f.table for f in findings} == {"customers", "orders"}
+
+
+
+class TestAggregateProfileResult:
+    def test_compacts_many_row_findings_without_losing_exact_counts(self):
+        frame = pd.DataFrame({"phone": [""] * 20})
+        result = ProfileResult(
+            version="test",
+            tables=[DatasetProfile("customers", 20, 1, ["phone"], [])],
+            issues=[
+                make_issue(
+                    issue_type="empty_string",
+                    row_reference={"row_indices": list(range(10))},
+                ),
+                make_issue(
+                    issue_type="empty_string",
+                    severity="error",
+                    row_reference={"row_indices": list(range(5, 15))},
+                    issue_id="ds1_second",
+                ),
+            ],
+        )
+
+        aggregated, finding_count = aggregate_profile_result(
+            result,
+            {"customers": frame},
+        )
+
+        assert finding_count == 20
+        assert len(aggregated) == 1
+        issue = aggregated[0]
+        assert issue["affectedRows"] == 15
+        assert issue["totalRows"] == 20
+        assert issue["affectedPercentage"] == 75.0
+        assert issue["severity"] == "high"
+        assert issue["examples"] == [f"customers:{i}" for i in range(1, 11)]
+        assert issue["evidence"]["findingCountInGroup"] == 20
+        assert "row_indices" not in str(issue["evidence"])
+        assert issue["fingerprint"]
+
+    def test_table_level_issue_counts_the_full_table(self):
+        frame = pd.DataFrame({"phone": [""] * 5})
+        result = ProfileResult(
+            version="test",
+            tables=[DatasetProfile("customers", 5, 1, ["phone"], [])],
+            issues=[make_issue(row_reference=None)],
+        )
+
+        aggregated, finding_count = aggregate_profile_result(
+            result,
+            {"customers": frame},
+        )
+
+        assert finding_count == 1
+        assert len(aggregated) == 1
+        assert aggregated[0]["affectedRows"] == 5
+        assert aggregated[0]["examples"] == []
