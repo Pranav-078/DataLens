@@ -100,3 +100,27 @@ jobs:
         run: docker compose --env-file .env.production.example -f docker-compose.production.yml config --quiet
       - name: Build production API, migration, profiler and frontend images
         run: docker compose --env-file .env.production.example -f docker-compose.production.yml build api migrate profiler frontend
+      - name: Smoke-test production stack, database privileges and browser origin checks
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env.production.example -f docker-compose.production.yml up -d
+          ready=0
+          for attempt in $(seq 1 36); do
+            if curl --fail --silent http://127.0.0.1:8080/api/health/ready > readiness.json; then
+              ready=1
+              break
+            fi
+            sleep 5
+          done
+          if [ "$ready" -ne 1 ]; then
+            docker compose --env-file .env.production.example -f docker-compose.production.yml ps -a
+            docker compose --env-file .env.production.example -f docker-compose.production.yml logs --tail 200
+            exit 1
+          fi
+          cat readiness.json
+          curl --fail --silent http://127.0.0.1:8080/healthz
+          bad_origin_status="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Origin: https://attacker.example' http://127.0.0.1:8080/api/auth/logout)"
+          good_origin_status="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' http://127.0.0.1:8080/api/auth/logout)"
+          test "$bad_origin_status" = "403"
+          test "$good_origin_status" = "200"
+          docker compose --env-file .env.production.example -f docker-compose.production.yml ps -a
