@@ -153,6 +153,7 @@ services:
 
   frontend:
     image: datalens-frontend:production
+    stop_grace_period: 5m
     build:
       context: ./frontend
       dockerfile: Dockerfile
