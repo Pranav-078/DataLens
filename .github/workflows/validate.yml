@@ -105,7 +105,7 @@ jobs:
     needs: [backend, frontend, python-profiler]
     runs-on: ubuntu-latest
     steps:
-      - name: Check out latest release branch after lockfile refresh
+      - name: Check out the exact release source
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'push' && github.ref_name || github.sha }}
@@ -150,7 +150,7 @@ jobs:
           registration_status="$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST -H 'Origin: https://datalens.example.com' -H 'Content-Type: application/json' --data '{}' http://127.0.0.1:8080/api/auth/register)"
           test "$registration_status" = "403"
 
-          db_privileges="$(docker compose --env-file .env.production.example -f docker-compose.production.yml exec -T db sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "SELECT has_database_privilege(''''datalens_app'''',''''datalens'''',''''CONNECT'''') AND NOT has_database_privilege(''''datalens_app'''',''''datalens'''',''''CREATE'''') AND has_schema_privilege(''''datalens_app'''',''''public'''',''''USAGE'''') AND NOT has_schema_privilege(''''datalens_app'''',''''public'''',''''CREATE'''') AND has_table_privilege(''''datalens_app'''',''''users'''',''''SELECT'''') AND has_table_privilege(''''datalens_app'''',''''users'''',''''INSERT'''')"')
+          db_privileges="$(docker compose --env-file .env.production.example -f docker-compose.production.yml exec -T db psql -U datalens_migrator -d datalens -Atqc "SELECT has_database_privilege('datalens_app','datalens','CONNECT') AND NOT has_database_privilege('datalens_app','datalens','CREATE') AND has_schema_privilege('datalens_app','public','USAGE') AND NOT has_schema_privilege('datalens_app','public','CREATE') AND has_table_privilege('datalens_app','users','SELECT') AND has_table_privilege('datalens_app','users','INSERT')")"
           test "$db_privileges" = "t"
 
           docker compose --env-file .env.production.example -f docker-compose.production.yml ps -a
