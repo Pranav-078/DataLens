@@ -492,3 +492,17 @@ button.rel-map-table.child:hover,button.rel-map-table.child.focused{background:#
   .auth-screen .login-panel-footer{margin-top:24px}
   .auth-screen .login-security{align-items:flex-start}
 }
+
+/* Profiling mode selection and sampled-version disclosure */
+.profile-mode-picker{display:grid;gap:9px;padding:14px 0;border-top:1px solid #edf1ed}
+.profile-mode-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.profile-mode-heading strong{font-size:10px;color:#3c5748}
+.profile-mode-heading span{font-size:8px;color:#8a9990}
+.profile-mode-options{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.profile-mode-option{display:grid;gap:5px;text-align:left;padding:11px 12px;border:1px solid #e3eae4;border-radius:8px;background:#fff;color:#496052;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .15s}
+.profile-mode-option strong{font-size:10px;font-weight:800}
+.profile-mode-option small{font-size:8px;line-height:1.5;color:#87958c}
+.profile-mode-option.active{border-color:#8ead7e;background:#f5faef;box-shadow:0 0 0 2px #dbe9d322}
+.profile-mode-option:disabled{opacity:.65;cursor:wait}
+.version-preview-note{display:inline-flex;align-items:center;padding:5px 8px;border-radius:5px;background:#fff8e9;color:#9b7d3d;font-size:8px;font-weight:700}
+@media(max-width:600px){.profile-mode-options{grid-template-columns:1fr}.profile-mode-heading{align-items:flex-start;flex-direction:column;gap:3px}}
