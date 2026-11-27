@@ -33,6 +33,14 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: backend/node-api/package-lock.json
+      - name: Set up Python for real-profiler integration tests
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/python-engine/pyproject.toml
+      - name: Install Python profiler test dependencies
+        run: python -m pip install -e "../python-engine[dev]"
       - name: Install locked dependencies
         run: npm ci
       - name: Report backend dependency advisories
