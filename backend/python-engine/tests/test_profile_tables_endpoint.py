@@ -278,3 +278,66 @@ def test_fast_preview_samples_rows_and_returns_source_and_profiled_counts():
     assert body["tables"][0]["profiledRowCount"] == 1000
     assert body["findings"] == []
     assert isinstance(body["aggregatedIssues"], list)
+
+
+
+def test_fast_preview_relationship_matching_uses_full_source_values_not_independent_samples():
+    customers_csv = _customers_csv(6000)
+    orders_rows = "\\n".join(f"O{i:05d},C{i % 6000:03d}" for i in range(12000))
+    orders_csv = f"order_id,customer_id\\n{orders_rows}\\n"
+
+    resp = client.post(
+        "/internal/profile/tables",
+        json={
+            "profileMode": "fast",
+            "sampleSizePerTable": 1000,
+            "tables": [
+                {"tableName": "customers", "csvContent": customers_csv},
+                {"tableName": "orders", "csvContent": orders_csv},
+            ],
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    matches = [
+        rel for rel in body["relationships"]
+        if rel["parent_table"] == "customers"
+        and rel["parent_column"] == "id"
+        and rel["child_table"] == "orders"
+        and rel["child_column"] == "customer_id"
+    ]
+    assert len(matches) == 1
+    assert matches[0]["value_overlap"] == 1.0
+    assert matches[0]["orphan_count"] == 0
+    assert matches[0]["evidence"]["candidateStatsSampled"] is True
+    assert matches[0]["evidence"]["orphanMetricsExact"] is True
+
+
+def test_relationship_rebuild_endpoint_uses_saved_csv_content_without_quality_findings():
+    customers_csv = _customers_csv(6000)
+    orders_rows = "\\n".join(f"O{i:05d},C{i % 6000:03d}" for i in range(12000))
+    orders_csv = f"order_id,customer_id\\n{orders_rows}\\n"
+
+    resp = client.post(
+        "/internal/profile/relationships",
+        json={
+            "sampleSizePerTable": 1000,
+            "tables": [
+                {"tableName": "customers", "csvContent": customers_csv},
+                {"tableName": "orders", "csvContent": orders_csv},
+            ],
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "relationships_inferred"
+    assert body["tableCount"] == 2
+    assert any(
+        rel["parent_table"] == "customers"
+        and rel["parent_column"] == "id"
+        and rel["child_table"] == "orders"
+        and rel["child_column"] == "customer_id"
+        for rel in body["relationships"]
+    )
