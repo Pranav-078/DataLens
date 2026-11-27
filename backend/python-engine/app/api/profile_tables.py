@@ -266,14 +266,18 @@ def post_profile_tables(payload: ProfileTablesRequest) -> ProfileTablesResponse:
                         source_row_counts[r.child_table],
                         int((r.orphan_percentage / 100) * source_row_counts[r.child_table] + 0.5),
                     )
-                    if estimated else r.orphan_count
+                    if estimated and profiled_row_counts[r.child_table] < source_row_counts[r.child_table]
+                    else r.orphan_count
                 ),
                 orphan_percentage=r.orphan_percentage,
                 orphan_examples=r.orphan_examples,
                 evidence={
                     **r.evidence,
                     "analysisMode": payload.profileMode,
-                    "estimated": estimated,
+                    "estimated": (
+                        estimated
+                        and profiled_row_counts[r.child_table] < source_row_counts[r.child_table]
+                    ),
                     "profiledChildRows": profiled_row_counts[r.child_table],
                     "sourceChildRows": source_row_counts[r.child_table],
                 },
