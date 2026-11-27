@@ -91,9 +91,15 @@ def derive_row_uid(table_name: str, frame: pd.DataFrame, position: int) -> str:
     1-based CSV data-row number: "customers:1" is always the first data
     row of the customers table, regardless of how many times this runs.
     """
+    # Detector row references are DataFrame index labels, not necessarily
+    # iloc offsets. Fast Preview samples preserve the original source index.
+    if position not in frame.index:
+        raise AdapterMappingError(
+            f"Row index {position} is not present in table {table_name!r}."
+        )
     if "row_uid" in frame.columns:
-        return str(frame.iloc[position]["row_uid"])
-    return f"{table_name}:{position + 1}"
+        return str(frame.at[position, "row_uid"])
+    return f"{table_name}:{int(position) + 1}"
 
 
 def _table_level_row_uid(table_name: str) -> str:
@@ -206,6 +212,8 @@ def aggregate_profile_result(
     result: ProfileResult,
     tables: dict[str, pd.DataFrame],
     max_examples: int = 10,
+    source_row_counts: dict[str, int] | None = None,
+    estimated: bool = False,
 ) -> tuple[list[dict[str, Any]], int]:
     """
     Aggregate Phase 1 issues directly into persistence-ready quality issues.
@@ -286,7 +294,8 @@ def aggregate_profile_result(
                 "issueType": issue.issue_type,
                 "dimension": _DIMENSION_BY_ISSUE_TYPE[issue.issue_type],
                 "severity": mapped_severity,
-                "totalRows": len(frame),
+                "totalRows": (source_row_counts or {}).get(issue.table, len(frame)),
+                "profiledRows": len(frame),
                 "rowUids": set(),
                 "examples": [],
                 "exampleSet": set(),
@@ -312,13 +321,31 @@ def aggregate_profile_result(
         unique_row_count = len(group["rowUids"])
         all_marker_level = unique_row_count == 0 and group["findingCountInGroup"] > 0
         total_rows = group["totalRows"]
-        affected_rows = total_rows if all_marker_level else unique_row_count
+        profiled_rows = group["profiledRows"]
 
-        if total_rows > 0:
-            percentage = (affected_rows / total_rows) * 100
-            affected_percentage = math.floor(percentage * 1000 + 0.5) / 1000
+        if all_marker_level:
+            # Preserve legacy semantics for table/column-level signals.
+            affected_rows = total_rows
+            affected_percentage = 100.0 if total_rows > 0 else 0.0
+        elif estimated and profiled_rows > 0:
+            # Fast Preview reports a full-table estimate derived from the
+            # sampled affected-row rate. It never presents sample counts as
+            # exact full-data counts.
+            affected_percentage = math.floor(
+                (unique_row_count / profiled_rows) * 100 * 1000 + 0.5
+            ) / 1000
+            affected_rows = min(
+                total_rows,
+                math.floor((affected_percentage / 100) * total_rows + 0.5),
+            )
+            if unique_row_count > 0 and total_rows > 0:
+                affected_rows = max(1, affected_rows)
         else:
-            affected_percentage = 0
+            affected_rows = unique_row_count
+            affected_percentage = (
+                math.floor((affected_rows / total_rows) * 100 * 1000 + 0.5) / 1000
+                if total_rows > 0 else 0
+            )
 
         humanized_type = issue_type.replace("_", " ")
         title = f"{humanized_type} in {table_name}"
@@ -342,9 +369,14 @@ def aggregate_profile_result(
             "totalRows": total_rows,
             "affectedPercentage": affected_percentage,
             "examples": [] if all_marker_level else group["examples"],
+            "estimated": estimated,
             "evidence": {
                 "sampleFindingEvidence": group["sampleEvidence"],
                 "findingCountInGroup": group["findingCountInGroup"],
+                "analysisMode": "fast" if estimated else "full",
+                "estimated": estimated,
+                "profiledRows": profiled_rows,
+                "sourceRows": total_rows,
             },
             "fingerprint": fingerprint,
         })
