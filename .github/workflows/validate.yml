@@ -100,10 +100,11 @@ jobs:
           cache-dependency-path: backend/python-engine/pyproject.toml
       - name: Install profiler and test dependencies
         run: python -m pip install -e ".[dev]"
-      - name: Audit Python dependencies
+      - name: Audit resolved third-party Python dependencies
         run: |
           python -m pip install pip-audit
-          pip-audit --strict --skip-editable
+          python -m pip list --format=freeze --exclude-editable > /tmp/datalens-audit-requirements.txt
+          pip-audit --strict --no-deps -r /tmp/datalens-audit-requirements.txt
       - name: Run profiler tests
         run: python -m pytest -q
 
